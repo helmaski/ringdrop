@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Subcommand;
 
 use crate::registry::Registry;
-use crate::util::{parse_ring_id, parse_peer_id};
+use crate::util::{parse_peer_id, parse_ring_id};
 
 #[derive(Subcommand)]
 pub enum Cmd {
@@ -110,7 +110,9 @@ pub fn run_ring(cmd: RingCmd, registry: Registry) -> Result<()> {
         RingCmd::Members { ring } => {
             let rid = parse_ring_id(&ring)?;
             if rid.is_open() {
-                println!("The open-ring ({rid}) is public — any peer may access blobs tagged with it.");
+                println!(
+                    "The open-ring ({rid}) is public — any peer may access blobs tagged with it."
+                );
                 return Ok(());
             }
             let members = registry.list_members(rid)?;

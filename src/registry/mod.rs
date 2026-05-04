@@ -69,7 +69,9 @@ impl Registry {
     pub fn create_ring(&self) -> Result<RingId> {
         let id = RingId::new();
         if id.is_open() {
-            return Err(anyhow!("UUID::new_v4 returned nil UUID — this should never happen"));
+            return Err(anyhow!(
+                "UUID::new_v4 returned nil UUID — this should never happen"
+            ));
         }
         let write = self.0.begin_write()?;
         {
@@ -144,7 +146,9 @@ impl Registry {
         let mut ids = vec![OPEN_RING_ID];
         for entry in table.iter()? {
             let (k, _) = entry?;
-            let bytes: [u8; 16] = k.value().try_into()
+            let bytes: [u8; 16] = k
+                .value()
+                .try_into()
                 .map_err(|_| anyhow!("corrupt ring key"))?;
             let rid = RingId::from_bytes(bytes);
             if !rid.is_open() {
@@ -175,10 +179,8 @@ impl Registry {
                 vec![*ring.as_bytes()]
             } else {
                 let open_bytes = *OPEN_RING_ID.as_bytes();
-                let mut kept: Vec<[u8; 16]> = existing
-                    .into_iter()
-                    .filter(|b| b != &open_bytes)
-                    .collect();
+                let mut kept: Vec<[u8; 16]> =
+                    existing.into_iter().filter(|b| b != &open_bytes).collect();
                 let rid_bytes = *ring.as_bytes();
                 if !kept.contains(&rid_bytes) {
                     kept.push(rid_bytes);
@@ -190,40 +192,6 @@ impl Registry {
         }
         write.commit()?;
         Ok(())
-    }
-
-    /// Remove a ring tag from a blob.
-    pub fn untag_file(&self, hash: Hash, ring: RingId) -> Result<()> {
-        let write = self.0.begin_write()?;
-        {
-            let mut table = write.open_table(FILE_RINGS)?;
-            let hash_key = hash.as_bytes();
-            let mut rings = match table.get(hash_key.as_slice())? {
-                Some(v) => decode_ring_ids(v.value()),
-                None => return Ok(()),
-            };
-            let rid_bytes = *ring.as_bytes();
-            rings.retain(|b| b != &rid_bytes);
-            table.insert(
-                hash_key.as_slice(),
-                encode_ring_ids(&rings).as_slice(),
-            )?;
-        }
-        write.commit()?;
-        Ok(())
-    }
-
-    /// List all rings a blob is tagged with.
-    pub fn file_rings(&self, hash: Hash) -> Result<Vec<RingId>> {
-        let read = self.0.begin_read()?;
-        let table = read.open_table(FILE_RINGS)?;
-        match table.get(hash.as_bytes().as_slice())? {
-            None => Ok(Vec::new()),
-            Some(v) => {
-                let raw = decode_ring_ids(v.value());
-                Ok(raw.into_iter().map(RingId::from_bytes).collect())
-            }
-        }
     }
 
     /// **The central access check.**
@@ -286,7 +254,10 @@ fn encode_peer_ids(ids: &[[u8; 32]]) -> Vec<u8> {
 
 fn decode_peer_ids(raw: &[u8]) -> Vec<[u8; 32]> {
     raw.chunks_exact(32)
-        .map(|c| c.try_into().expect("invariant: chunks_exact(32) yields 32-byte slices"))
+        .map(|c| {
+            c.try_into()
+                .expect("invariant: chunks_exact(32) yields 32-byte slices")
+        })
         .collect()
 }
 
@@ -296,7 +267,10 @@ fn encode_ring_ids(ids: &[[u8; 16]]) -> Vec<u8> {
 
 fn decode_ring_ids(raw: &[u8]) -> Vec<[u8; 16]> {
     raw.chunks_exact(16)
-        .map(|c| c.try_into().expect("invariant: chunks_exact(16) yields 16-byte slices"))
+        .map(|c| {
+            c.try_into()
+                .expect("invariant: chunks_exact(16) yields 16-byte slices")
+        })
         .collect()
 }
 

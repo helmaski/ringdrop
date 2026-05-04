@@ -36,9 +36,9 @@ use iroh_blobs::{
 use tracing::info;
 use walkdir::WalkDir;
 
+use super::protocol::{encode_ranges_wire, RingGate, Status, SC_ALPN};
 use crate::registry::Registry;
 use crate::ticket::ShareTicket;
-use super::protocol::{RingGate, SC_ALPN, Status, encode_ranges_wire};
 
 pub struct Node {
     pub endpoint: Endpoint,
@@ -62,12 +62,10 @@ impl Node {
         //   <hash>.obao4    — flattened BLAKE3 hash tree (16 KiB chunk groups)
         //   <hash>.bitfield — bitmask of validated chunk groups (crash-safe)
         let blobs_dir = data_dir.join("blobs");
-        let store = FsStore::load(&blobs_dir)
-            .await
-            .context("loading FsStore")?;
+        let store = FsStore::load(&blobs_dir).await.context("loading FsStore")?;
 
-        let registry = Registry::open(data_dir.join("registry.redb"))
-            .context("opening registry")?;
+        let registry =
+            Registry::open(data_dir.join("registry.redb")).context("opening registry")?;
 
         let gate = RingGate::new(registry.clone(), store.clone());
         let blobs_proto = BlobsProtocol::new(&store, None);
@@ -80,16 +78,27 @@ impl Node {
         endpoint.online().await;
         info!(peer_id = %endpoint.id(), "node online");
 
-        Ok(Node { endpoint, store, registry, router })
+        Ok(Node {
+            endpoint,
+            store,
+            registry,
+            router,
+        })
     }
 
-    pub fn peer_id(&self) -> EndpointId { self.endpoint.id() }
-    pub fn node_addr(&self) -> EndpointAddr { self.endpoint.addr() }
+    pub fn peer_id(&self) -> EndpointId {
+        self.endpoint.id()
+    }
+    pub fn node_addr(&self) -> EndpointAddr {
+        self.endpoint.addr()
+    }
 
     pub async fn import_file(&self, path: impl AsRef<Path>) -> Result<(Hash, BlobFormat)> {
         let path = std::path::absolute(path.as_ref())?;
         info!(path = %path.display(), "importing file");
-        let tag = self.store.blobs()
+        let tag = self
+            .store
+            .blobs()
             .add_path_with_opts(AddPathOptions {
                 path,
                 mode: ImportMode::TryReference,
@@ -107,18 +116,26 @@ impl Node {
         info!(dir = %dir.display(), "importing directory");
 
         let mut files: Vec<(String, PathBuf)> = Vec::new();
-        for entry in WalkDir::new(dir).follow_links(false).into_iter()
+        for entry in WalkDir::new(dir)
+            .follow_links(false)
+            .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
         {
-            let rel = entry.path().strip_prefix(dir).unwrap_or(entry.path())
-                .to_string_lossy().into_owned();
+            let rel = entry
+                .path()
+                .strip_prefix(dir)
+                .unwrap_or(entry.path())
+                .to_string_lossy()
+                .into_owned();
             files.push((rel, entry.path().to_path_buf()));
         }
 
         let mut collection = Collection::default();
         for (name, path) in files {
-            let tag = self.store.blobs()
+            let tag = self
+                .store
+                .blobs()
                 .add_path_with_opts(AddPathOptions {
                     path: std::path::absolute(&path)?,
                     mode: ImportMode::TryReference,
@@ -130,7 +147,7 @@ impl Node {
             collection.push(name, tag.hash());
         }
 
-        let col_tag = collection.store(&*self.store).await?;
+        let col_tag = collection.store(&self.store).await?;
         info!(hash = %col_tag.hash(), "collection stored");
         Ok((col_tag.hash(), BlobFormat::HashSeq))
     }
@@ -160,7 +177,9 @@ impl Node {
 
         info!(hash = %hash, from = %node_addr.id, "starting download");
 
-        let already_have: ChunkRanges = self.store.blobs()
+        let already_have: ChunkRanges = self
+            .store
+            .blobs()
             .observe(hash)
             .await_completion()
             .await
@@ -174,7 +193,8 @@ impl Node {
         }
         info!(hash = %hash, have = ?already_have.iter().count(), "sending range request");
 
-        let conn = self.endpoint
+        let conn = self
+            .endpoint
             .connect(node_addr, SC_ALPN)
             .await
             .context("connecting to sender")?;
@@ -185,7 +205,9 @@ impl Node {
         send.finish()?;
 
         let mut status_byte = [0u8; 1];
-        recv.read_exact(&mut status_byte).await.context("reading status")?;
+        recv.read_exact(&mut status_byte)
+            .await
+            .context("reading status")?;
 
         match Status::try_from(status_byte[0])? {
             Status::Denied => bail!(
@@ -196,7 +218,9 @@ impl Node {
             Status::Allowed => {}
         }
 
-        let _ = self.store.blobs()
+        let _ = self
+            .store
+            .blobs()
             .import_bao_reader(hash, missing, &mut recv)
             .await
             .context("decoding and storing bao stream")?;
@@ -230,7 +254,8 @@ impl Node {
                     if let Some(parent) = target.parent() {
                         tokio::fs::create_dir_all(parent).await?;
                     }
-                    self.store.blobs()
+                    self.store
+                        .blobs()
                         .export(*blob_hash, &target)
                         .finish()
                         .await
@@ -238,7 +263,8 @@ impl Node {
                 }
             }
             _ => {
-                self.store.blobs()
+                self.store
+                    .blobs()
                     .export(hash, &export_path)
                     .finish()
                     .await

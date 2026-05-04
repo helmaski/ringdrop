@@ -22,17 +22,35 @@ pub struct ShareTicket {
 
 impl ShareTicket {
     pub fn new(addr: EndpointAddr, hash: Hash, name: Option<String>) -> Self {
-        ShareTicket { addr, hash, format: BlobFormat::Raw, name }
+        ShareTicket {
+            addr,
+            hash,
+            format: BlobFormat::Raw,
+            name,
+        }
     }
 
     pub fn new_collection(addr: EndpointAddr, hash: Hash, name: Option<String>) -> Self {
-        ShareTicket { addr, hash, format: BlobFormat::HashSeq, name }
+        ShareTicket {
+            addr,
+            hash,
+            format: BlobFormat::HashSeq,
+            name,
+        }
     }
 
-    pub fn hash(&self) -> Hash { self.hash }
-    pub fn format(&self) -> BlobFormat { self.format }
-    pub fn node_addr(&self) -> &EndpointAddr { &self.addr }
-    pub fn peer_id(&self) -> EndpointId { self.addr.id }
+    pub fn hash(&self) -> Hash {
+        self.hash
+    }
+    pub fn format(&self) -> BlobFormat {
+        self.format
+    }
+    pub fn node_addr(&self) -> &EndpointAddr {
+        &self.addr
+    }
+    pub fn peer_id(&self) -> EndpointId {
+        self.addr.id
+    }
 
     pub fn to_uri(&self) -> Result<String> {
         let wire = TicketWire {

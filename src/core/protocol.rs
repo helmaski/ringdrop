@@ -56,7 +56,7 @@ impl AsyncStreamWriter for SendStreamWriter<'_> {
 
 #[repr(u8)]
 pub(super) enum Status {
-    Denied  = 0x00,
+    Denied = 0x00,
     Allowed = 0x01,
 }
 
@@ -66,7 +66,7 @@ impl TryFrom<u8> for Status {
         match b {
             0x00 => Ok(Status::Denied),
             0x01 => Ok(Status::Allowed),
-            _    => Err(anyhow::anyhow!("unexpected status byte: 0x{b:02x}")),
+            _ => Err(anyhow::anyhow!("unexpected status byte: 0x{b:02x}")),
         }
     }
 }
@@ -75,7 +75,10 @@ impl TryFrom<u8> for Status {
 ///   [u32-le count] [count × (start u64-le, end u64-le)]
 pub(super) fn encode_ranges_wire(ranges: &ChunkRanges) -> Vec<u8> {
     let boundaries = ranges.boundaries();
-    debug_assert!(boundaries.len() % 2 == 0, "invariant: already-have ranges are always bounded");
+    debug_assert!(
+        boundaries.len().is_multiple_of(2),
+        "invariant: already-have ranges are always bounded"
+    );
     let pair_count = (boundaries.len() / 2) as u32;
     let mut out = Vec::with_capacity(4 + pair_count as usize * 16);
     out.extend_from_slice(&pair_count.to_le_bytes());
@@ -95,8 +98,16 @@ fn decode_ranges_wire(count: u32, raw: &[u8]) -> Result<ChunkRanges> {
         if base + 16 > raw.len() {
             bail!("range data truncated at index {i}");
         }
-        let start = u64::from_le_bytes(raw[base..base + 8].try_into().expect("invariant: slice is exactly 8 bytes"));
-        let end = u64::from_le_bytes(raw[base + 8..base + 16].try_into().expect("invariant: slice is exactly 8 bytes"));
+        let start = u64::from_le_bytes(
+            raw[base..base + 8]
+                .try_into()
+                .expect("invariant: slice is exactly 8 bytes"),
+        );
+        let end = u64::from_le_bytes(
+            raw[base + 8..base + 16]
+                .try_into()
+                .expect("invariant: slice is exactly 8 bytes"),
+        );
         ranges |= ChunkRanges::from(ChunkNum(start)..ChunkNum(end));
     }
     Ok(ranges)
@@ -121,10 +132,15 @@ impl RingGate {
 }
 
 impl ProtocolHandler for RingGate {
-    fn accept(&self, conn: Connection) -> impl std::future::Future<Output = Result<(), AcceptError>> + Send {
+    fn accept(
+        &self,
+        conn: Connection,
+    ) -> impl std::future::Future<Output = Result<(), AcceptError>> + Send {
         let gate = self.clone();
         async move {
-            gate.handle(conn).await.map_err(|e| AcceptError::from_boxed(e.into()))
+            gate.handle(conn)
+                .await
+                .map_err(|e| AcceptError::from_boxed(e.into()))
         }
     }
 }
@@ -132,18 +148,13 @@ impl ProtocolHandler for RingGate {
 impl RingGate {
     async fn handle(&self, conn: Connection) -> Result<()> {
         let peer: EndpointId = conn.remote_id();
-        loop {
-            match conn.accept_bi().await {
-                Ok((send, recv)) => {
-                    let gate = self.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = gate.handle_request(peer, send, recv).await {
-                            warn!(%peer, "request error: {e:#}");
-                        }
-                    });
+        while let Ok((send, recv)) = conn.accept_bi().await {
+            let gate = self.clone();
+            tokio::spawn(async move {
+                if let Err(e) = gate.handle_request(peer, send, recv).await {
+                    warn!(%peer, "request error: {e:#}");
                 }
-                Err(_) => break,
-            }
+            });
         }
         Ok(())
     }
@@ -155,17 +166,23 @@ impl RingGate {
         mut recv: iroh::endpoint::RecvStream,
     ) -> Result<()> {
         let mut hash_bytes = [0u8; 32];
-        recv.read_exact(&mut hash_bytes).await.context("reading hash")?;
+        recv.read_exact(&mut hash_bytes)
+            .await
+            .context("reading hash")?;
         let hash = Hash::from_bytes(hash_bytes);
 
         let mut count_buf = [0u8; 4];
-        recv.read_exact(&mut count_buf).await.context("reading range count")?;
+        recv.read_exact(&mut count_buf)
+            .await
+            .context("reading range count")?;
         let range_count = u32::from_le_bytes(count_buf);
 
         let range_data_len = range_count as usize * 16;
         let mut range_data = vec![0u8; range_data_len];
         if range_data_len > 0 {
-            recv.read_exact(&mut range_data).await.context("reading ranges")?;
+            recv.read_exact(&mut range_data)
+                .await
+                .context("reading ranges")?;
         }
 
         let already_have = decode_ranges_wire(range_count, &range_data)?;
@@ -183,7 +200,8 @@ impl RingGate {
         info!(%peer, %hash, "ALLOWED — streaming missing ranges");
         send.write_all(&[Status::Allowed as u8]).await?;
 
-        self.store.blobs()
+        self.store
+            .blobs()
             .export_bao(hash, missing)
             .write(&mut SendStreamWriter(&mut send))
             .await

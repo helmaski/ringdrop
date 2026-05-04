@@ -17,11 +17,14 @@ pub fn parse_ring_id(s: &str) -> Result<RingId> {
     if s == OPEN_RING_NAME || s == "open" {
         return Ok(OPEN_RING_ID);
     }
-    Ok(RingId(Uuid::parse_str(s).context("invalid ring id (expected UUID or 'open-ring')")?))
+    Ok(RingId(Uuid::parse_str(s).context(
+        "invalid ring id (expected UUID or 'open-ring')",
+    )?))
 }
 
 pub fn parse_peer_id(s: &str) -> Result<EndpointId> {
-    s.parse().map_err(|e| anyhow::anyhow!("invalid peer id: {e}"))
+    s.parse()
+        .map_err(|e| anyhow::anyhow!("invalid peer id: {e}"))
 }
 
 pub fn parse_hash(s: &str) -> Result<Hash> {

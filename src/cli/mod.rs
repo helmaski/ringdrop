@@ -33,11 +33,11 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-use command::Cmd;
 use crate::core::Node;
 use crate::registry::{Registry, OPEN_RING_ID};
 use crate::ticket::ShareTicket;
-use crate::util::{default_data_dir, parse_ring_id, parse_hash};
+use crate::util::{default_data_dir, parse_hash, parse_ring_id};
+use command::Cmd;
 
 #[derive(Parser)]
 #[command(
@@ -54,7 +54,6 @@ struct Cli {
     #[command(subcommand)]
     command: Cmd,
 }
-
 
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
@@ -76,9 +75,8 @@ pub async fn run() -> Result<()> {
                 node.import_file(&path).await?
             };
 
-            let display_name = name.or_else(|| {
-                path.file_name().map(|n| n.to_string_lossy().into_owned())
-            });
+            let display_name =
+                name.or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()));
             let ticket = node.make_ticket(hash, format, display_name);
             let ticket_str = ticket.to_uri()?;
 
@@ -90,7 +88,10 @@ pub async fn run() -> Result<()> {
             println!("  rdrop receive {ticket_str}");
             println!();
             println!("Grant access with:");
-            println!("  rdrop tag {} --ring <uuid>  # private ring", path.display());
+            println!(
+                "  rdrop tag {} --ring <uuid>  # private ring",
+                path.display()
+            );
             println!("  rdrop tag {} --open          # anyone", path.display());
             println!();
             println!("Serving… (Ctrl-C to stop)");
@@ -107,7 +108,11 @@ pub async fn run() -> Result<()> {
                 "Fetching {} from {}{}",
                 ticket.hash(),
                 ticket.peer_id(),
-                ticket.name.as_deref().map(|n| format!(" ({n})")).unwrap_or_default()
+                ticket
+                    .name
+                    .as_deref()
+                    .map(|n| format!(" ({n})"))
+                    .unwrap_or_default()
             );
             println!("Destination: {}", dest.display());
             println!("(If interrupted, re-run this command to resume from where it stopped.)");
@@ -129,7 +134,11 @@ pub async fn run() -> Result<()> {
             node.shutdown().await?;
         }
 
-        Cmd::Tag { target, rings, open } => {
+        Cmd::Tag {
+            target,
+            rings,
+            open,
+        } => {
             tokio::fs::create_dir_all(&data_dir).await?;
 
             let path = PathBuf::from(&target);

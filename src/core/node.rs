@@ -74,7 +74,8 @@ impl Node {
         let store = FsStore::load(&blobs_dir).await.context("loading FsStore")?;
 
         let registry =
-            Registry::open(data_dir.join("registry.redb")).context("opening registry")?;
+            Registry::open(data_dir.join("registry.redb"), endpoint.id())
+                .context("opening registry")?;
 
         let (gate, transfer_done) = RingGate::new(registry.clone(), store.clone());
         let blobs_proto = BlobsProtocol::new(&store, None);

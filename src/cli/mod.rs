@@ -30,10 +30,11 @@ mod command;
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use iroh_blobs::{BlobFormat, Hash};
 
+use crate::config::Config;
 use crate::core::Node;
 use crate::registry::{Registry, OPEN_RING_NAME};
 use crate::ticket::ShareTicket;
@@ -75,7 +76,8 @@ async fn resolve_target(target: &str, data_dir: &std::path::Path) -> Result<(Has
         Ok((hash, registry))
     } else {
         let hash = parse_hash(target)?;
-        let registry = Registry::open(data_dir.join("registry.redb"))?;
+        let cfg = Config::load_or_create(data_dir).context("loading config")?;
+        let registry = Registry::open(data_dir.join("registry.redb"), cfg.secret_key.public())?;
         Ok((hash, registry))
     }
 }
@@ -87,7 +89,8 @@ pub async fn run() -> Result<()> {
     match cli.command {
         Cmd::Ring(ring_cmd) => {
             tokio::fs::create_dir_all(&data_dir).await?;
-            let registry = Registry::open(data_dir.join("registry.redb"))?;
+            let cfg = Config::load_or_create(&data_dir).context("loading config")?;
+            let registry = Registry::open(data_dir.join("registry.redb"), cfg.secret_key.public())?;
             command::run_ring(ring_cmd, registry)?;
         }
 

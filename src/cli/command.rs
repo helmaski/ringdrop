@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::Subcommand;
+use clap::{ArgGroup, Subcommand};
 
 use crate::registry::{Registry, OPEN_RING_NAME};
 use crate::util::parse_peer_id;
@@ -31,6 +31,7 @@ pub enum Cmd {
     },
 
     /// Grant access to a file by tagging it with a ring
+    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open"])))]
     Tag {
         /// File path or BLAKE3 hash (hex)
         target: String,

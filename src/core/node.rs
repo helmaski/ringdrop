@@ -28,12 +28,12 @@ use anyhow::{bail, Context, Result};
 use bao_tree::ChunkRanges;
 use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointAddr, EndpointId};
 use iroh_blobs::{
-    api::blobs::{AddPathOptions, ImportMode},
+    api::blobs::{AddPathOptions, BlobStatus, ImportMode},
     format::collection::Collection,
     store::fs::FsStore,
     BlobFormat, BlobsProtocol, Hash,
 };
-use tracing::info;
+use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use super::protocol::{encode_ranges_wire, RingGate, Status, SC_ALPN};
@@ -181,28 +181,28 @@ impl Node {
 
         info!(hash = %hash, from = %node_addr.id, "starting download");
 
-        let already_have: ChunkRanges = self
-            .store
-            .blobs()
-            .observe(hash)
-            .await
-            .map(|bf| bf.ranges)
-            .unwrap_or_default();
+        let already_have: ChunkRanges = match self.store.blobs().status(hash).await {
+            Ok(BlobStatus::Complete { .. }) => ChunkRanges::all(),
+            _ => ChunkRanges::default(),
+        };
+        debug!("blob status checked");
 
         let missing = ChunkRanges::all() & !already_have.clone();
         if missing.is_empty() {
             info!(hash = %hash, "all chunks present — skipping download");
             return self.export(hash, format, &ticket.name, &dest).await;
         }
-        info!(hash = %hash, have = ?already_have.iter().count(), "sending range request");
+        info!(hash = %hash, "sending range request");
 
         let conn = self
             .endpoint
             .connect(node_addr, SC_ALPN)
             .await
             .context("connecting to sender")?;
+        debug!("connection established");
 
         let (mut send, mut recv) = conn.open_bi().await?;
+        debug!("stream opened");
         send.write_all(hash.as_bytes()).await?;
         send.write_all(&encode_ranges_wire(&already_have)).await?;
         send.finish()?;
@@ -245,6 +245,7 @@ impl Node {
         } else {
             dest.to_path_buf()
         };
+        let export_path = std::path::absolute(&export_path)?;
 
         match format {
             BlobFormat::HashSeq => {

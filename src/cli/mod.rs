@@ -33,6 +33,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
+use iroh_blobs::{BlobFormat, Hash};
+
 use crate::core::Node;
 use crate::registry::{Registry, OPEN_RING_ID};
 use crate::ticket::ShareTicket;
@@ -55,6 +57,30 @@ struct Cli {
     command: Cmd,
 }
 
+async fn import_path(node: &Node, path: &std::path::Path) -> Result<(Hash, BlobFormat)> {
+    if path.is_dir() {
+        node.import_directory(path).await
+    } else {
+        node.import_file(path).await
+    }
+}
+
+async fn resolve_target(target: &str, data_dir: &std::path::Path) -> Result<(Hash, Registry)> {
+    tokio::fs::create_dir_all(data_dir).await?;
+    let path = PathBuf::from(target);
+    if path.exists() {
+        let node = Node::start(data_dir).await?;
+        let (hash, _) = import_path(&node, &path).await?;
+        let registry = node.registry.clone();
+        node.shutdown().await?;
+        Ok((hash, registry))
+    } else {
+        let hash = parse_hash(target)?;
+        let registry = Registry::open(data_dir.join("registry.redb"))?;
+        Ok((hash, registry))
+    }
+}
+
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     let data_dir = cli.data_dir.unwrap_or_else(default_data_dir);
@@ -68,12 +94,7 @@ pub async fn run() -> Result<()> {
 
         Cmd::Share { path, name } => {
             let node = Node::start(&data_dir).await?;
-
-            let (hash, format) = if path.is_dir() {
-                node.import_directory(&path).await?
-            } else {
-                node.import_file(&path).await?
-            };
+            let (hash, format) = import_path(&node, &path).await?;
 
             let display_name =
                 name.or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()));
@@ -139,24 +160,7 @@ pub async fn run() -> Result<()> {
             rings,
             open,
         } => {
-            tokio::fs::create_dir_all(&data_dir).await?;
-
-            let path = PathBuf::from(&target);
-            let (hash, registry) = if path.exists() {
-                let node = Node::start(&data_dir).await?;
-                let (hash, _) = if path.is_dir() {
-                    node.import_directory(&path).await?
-                } else {
-                    node.import_file(&path).await?
-                };
-                let registry = node.registry.clone();
-                node.shutdown().await?;
-                (hash, registry)
-            } else {
-                let hash = parse_hash(&target)?;
-                let registry = Registry::open(data_dir.join("registry.redb"))?;
-                (hash, registry)
-            };
+            let (hash, registry) = resolve_target(&target, &data_dir).await?;
 
             for s in &rings {
                 let rid = parse_ring_id(s)?;
@@ -166,6 +170,24 @@ pub async fn run() -> Result<()> {
             if open {
                 registry.tag_file(hash, OPEN_RING_ID)?;
                 println!("Tagged {hash} as open-ring (publicly accessible)");
+            }
+        }
+
+        Cmd::Tags { target } => {
+            let (hash, registry) = resolve_target(&target, &data_dir).await?;
+
+            let rings = registry.file_rings(hash)?;
+            if rings.is_empty() {
+                println!("{hash}: no rings (access denied to all peers)");
+            } else {
+                println!("{}: {} ring(s):", hash, rings.len());
+                for ring in &rings {
+                    if ring.is_open() {
+                        println!("  {ring}  (open — publicly accessible)");
+                    } else {
+                        println!("  {ring}");
+                    }
+                }
             }
         }
 

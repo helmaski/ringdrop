@@ -42,6 +42,12 @@ pub enum Cmd {
         open: bool,
     },
 
+    /// Show which rings a file is tagged with
+    Tags {
+        /// File path or BLAKE3 hash (hex)
+        target: String,
+    },
+
     /// Print your PeerId so others can add you to their rings
     Id,
 }

@@ -171,6 +171,12 @@ impl Registry {
     pub fn tag_file(&self, hash: Hash, ring: &str) -> Result<()> {
         let write = self.0.begin_write()?;
         {
+            let rings_table = write.open_table(RINGS)?;
+            if rings_table.get(ring)?.is_none() {
+                return Err(anyhow!("ring '{}' not found", ring));
+            }
+            drop(rings_table);
+
             let mut table = write.open_table(FILE_RINGS)?;
             let hash_key = hash.as_bytes();
             let existing = match table.get(hash_key.as_slice())? {
@@ -333,6 +339,13 @@ mod tests {
         assert_eq!(rings.len(), 2);
         assert!(rings.contains(&RingId("friends".to_owned())));
         assert!(rings.contains(&RingId("work".to_owned())));
+    }
+
+    #[test]
+    fn tag_file_rejects_nonexistent_ring() {
+        let (reg, _dir) = make_registry();
+        let hash = make_hash(1);
+        assert!(reg.tag_file(hash, "ghost").is_err());
     }
 
     // create_ring validation

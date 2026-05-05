@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 authors = ["Enrico Fusto"]
 license = "MIT"
-description = "P2P file transfer with ring-based access control, built on iroh-blobs verified streaming"
+description = "P2P streamed file transfer with ring-based access control, built on iroh and bao protocols"
 repository = "https://github.com/rikettsie/ringdrop"
 
 [[bin]]

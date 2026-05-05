@@ -53,8 +53,8 @@ use command::{BlobCmd, Cmd};
 #[derive(Parser)]
 #[command(
     name = "rdrop",
-    about = "P2P file transfer with ring-based access control\n\
-             Powered by iroh-blobs BLAKE3 verified streaming with crash-safe resumption",
+    about = "P2P streamed file transfer with ring-based access control.\n\
+             Built on iroh and bao protocols.",
     version
 )]
 struct Cli {

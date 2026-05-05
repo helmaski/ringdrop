@@ -87,6 +87,17 @@ rdrop receive rdrop://ABCDEF... [--dest ./downloads]
 
 Re-run the same command to resume an interrupted transfer.
 
+## Activate more logging
+
+By default only warnings are printed. Set `RUST_LOG` to get more detail:
+
+```sh
+RUST_LOG=ringdrop=info rdrop serve      # info-level logs for all ringdrop code
+RUST_LOG=debug rdrop serve              # debug logs including iroh internals
+```
+
+This applies to every command, not just `serve`.
+
 ## How it works
 
 `ringdrop` is built on top of:

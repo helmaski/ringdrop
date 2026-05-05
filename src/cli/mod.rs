@@ -35,6 +35,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::Parser;
 use iroh_blobs::{BlobFormat, Hash};
+use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::config::Config;
 use crate::core::Node;
@@ -86,6 +87,16 @@ async fn resolve_target(target: &str, data_dir: &std::path::Path) -> Result<(Has
 
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
+
+    fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("warn")),
+        )
+        .with_target(false)
+        .compact()
+        .init();
+
     let data_dir = cli.data_dir.unwrap_or_else(default_data_dir);
 
     match cli.command {

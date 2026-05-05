@@ -94,7 +94,11 @@ pub async fn run() -> Result<()> {
             command::run_ring(ring_cmd, registry)?;
         }
 
-        Cmd::Share { path, name, oneshot } => {
+        Cmd::Share {
+            path,
+            name,
+            oneshot,
+        } => {
             let node = Node::start(&data_dir).await?;
             let (hash, format) = import_path(&node, &path).await?;
 
@@ -111,8 +115,14 @@ pub async fn run() -> Result<()> {
             println!("  rdrop receive {ticket_str}");
             println!();
             println!("Grant access with:");
-            println!("  rdrop tag {} --ring <ring-name>  # private ring", path.display());
-            println!("  rdrop tag {} --open               # anyone", path.display());
+            println!(
+                "  rdrop tag {} --ring <ring-name>  # private ring",
+                path.display()
+            );
+            println!(
+                "  rdrop tag {} --open               # anyone",
+                path.display()
+            );
             println!();
             if oneshot {
                 println!("Serving… (exits after first successful transfer, or Ctrl-C to stop)");

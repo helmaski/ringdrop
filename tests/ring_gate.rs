@@ -14,11 +14,15 @@ async fn open_ring_allows_any_peer() {
     let (hash, format) = sender.node.import_file(&file).await.unwrap();
     sender.node.registry.tag_file(hash, OPEN_RING_NAME).unwrap();
 
-    let ticket = sender.node.make_ticket(hash, format, Some("hello.txt".into()));
+    let ticket = sender
+        .node
+        .make_ticket(hash, format, Some("hello.txt".into()));
     let dest = TempDir::new().unwrap();
     receiver.node.download(&ticket, dest.path()).await.unwrap();
 
-    let got = tokio::fs::read(dest.path().join("hello.txt")).await.unwrap();
+    let got = tokio::fs::read(dest.path().join("hello.txt"))
+        .await
+        .unwrap();
     assert_eq!(got, b"hello from ringdrop");
 
     sender.shutdown().await;
@@ -42,11 +46,15 @@ async fn private_ring_allows_member() {
         .unwrap();
     sender.node.registry.tag_file(hash, "friends").unwrap();
 
-    let ticket = sender.node.make_ticket(hash, format, Some("secret.txt".into()));
+    let ticket = sender
+        .node
+        .make_ticket(hash, format, Some("secret.txt".into()));
     let dest = TempDir::new().unwrap();
     receiver.node.download(&ticket, dest.path()).await.unwrap();
 
-    let got = tokio::fs::read(dest.path().join("secret.txt")).await.unwrap();
+    let got = tokio::fs::read(dest.path().join("secret.txt"))
+        .await
+        .unwrap();
     assert_eq!(got, b"for members only");
 
     sender.shutdown().await;

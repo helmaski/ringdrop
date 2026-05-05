@@ -15,7 +15,9 @@ async fn file_content_matches_after_transfer() {
     let (hash, format) = sender.node.import_file(&file).await.unwrap();
     sender.node.registry.tag_file(hash, OPEN_RING_NAME).unwrap();
 
-    let ticket = sender.node.make_ticket(hash, format, Some("fox.txt".into()));
+    let ticket = sender
+        .node
+        .make_ticket(hash, format, Some("fox.txt".into()));
     let dest = TempDir::new().unwrap();
     receiver.node.download(&ticket, dest.path()).await.unwrap();
 
@@ -40,12 +42,16 @@ async fn already_complete_blob_skips_transfer() {
     let (hash, format) = sender.node.import_file(&file).await.unwrap();
     sender.node.registry.tag_file(hash, OPEN_RING_NAME).unwrap();
 
-    let ticket = sender.node.make_ticket(hash, format, Some("cached.txt".into()));
+    let ticket = sender
+        .node
+        .make_ticket(hash, format, Some("cached.txt".into()));
 
     let dest1 = TempDir::new().unwrap();
     receiver.node.download(&ticket, dest1.path()).await.unwrap();
     assert_eq!(
-        tokio::fs::read(dest1.path().join("cached.txt")).await.unwrap(),
+        tokio::fs::read(dest1.path().join("cached.txt"))
+            .await
+            .unwrap(),
         content
     );
 
@@ -55,7 +61,9 @@ async fn already_complete_blob_skips_transfer() {
     let dest2 = TempDir::new().unwrap();
     receiver.node.download(&ticket, dest2.path()).await.unwrap();
     assert_eq!(
-        tokio::fs::read(dest2.path().join("cached.txt")).await.unwrap(),
+        tokio::fs::read(dest2.path().join("cached.txt"))
+            .await
+            .unwrap(),
         content
     );
 

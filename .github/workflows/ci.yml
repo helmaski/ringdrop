@@ -40,8 +40,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Unit and doc tests
-        run: cargo test --lib --doc
+      - name: Unit tests
+        run: cargo test --lib
+
+      - name: Doc tests
+        run: cargo test --doc
 
       - name: Integration tests
         run: cargo test --test '*'

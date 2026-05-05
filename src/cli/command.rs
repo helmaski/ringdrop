@@ -96,14 +96,21 @@ pub fn run_ring(cmd: RingCmd, registry: Registry) -> Result<()> {
             println!("{} ring(s):", rings.len());
             for r in rings {
                 if r.is_open() {
-                    println!("  {}  — publicly accessible (no membership required)", r.as_str());
+                    println!(
+                        "  {}  — publicly accessible (no membership required)",
+                        r.as_str()
+                    );
                 } else {
                     let members = registry.list_members(r.as_str())?;
                     println!("  {}  ({} member(s))", r.as_str(), members.len());
                 }
             }
         }
-        RingCmd::Add { ring, peer, nickname } => {
+        RingCmd::Add {
+            ring,
+            peer,
+            nickname,
+        } => {
             if ring == OPEN_RING_NAME {
                 println!("The open ring has no membership list — everyone is welcome.");
                 return Ok(());

@@ -2,7 +2,7 @@
 //!
 //! Two redb tables form the entire data model:
 //!
-//! ```
+//! ```text
 //! RINGS: ring_name (&str) → [EndpointId (32-byte Ed25519 pubkeys)]
 //! FILE_RINGS: BlobHash (32 bytes) → NUL-separated ring names
 //! ```
@@ -65,7 +65,10 @@ impl Registry {
             }
         }
         write.commit()?;
-        Ok(Registry { db: Arc::new(db), self_id })
+        Ok(Registry {
+            db: Arc::new(db),
+            self_id,
+        })
     }
 
     /// Create a new ring with the given name.

@@ -15,15 +15,13 @@ impl Config {
         if path.exists() {
             let raw = std::fs::read_to_string(&path)
                 .with_context(|| format!("reading {}", path.display()))?;
-            serde_json::from_str(&raw)
-                .with_context(|| format!("parsing {}", path.display()))
+            serde_json::from_str(&raw).with_context(|| format!("parsing {}", path.display()))
         } else {
             let cfg = Config {
                 secret_key: SecretKey::generate(),
             };
             let raw = serde_json::to_string_pretty(&cfg)?;
-            std::fs::write(&path, raw)
-                .with_context(|| format!("writing {}", path.display()))?;
+            std::fs::write(&path, raw).with_context(|| format!("writing {}", path.display()))?;
             Ok(cfg)
         }
     }

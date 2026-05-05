@@ -1,11 +1,12 @@
 # ringdrop
 
-`rdrop` is a P2P file transfer tool with *ring-based* access control.
-Built on top of [iroh](https://github.com/n0-computer/iroh) and [iroh-blobs](https://github.com/n0-computer/iroh-blobs) verified streaming.
+`rdrop` is a streamed P2P file transfer tool with *ring-based* access control, built on [iroh](https://github.com/n0-computer/iroh) and [iroh-blobs](https://github.com/n0-computer/iroh-blobs).
 
 To share a file, tag it with one or more rings and get back an `rdrop://` ticket to hand to peers.
 Only peers who are members of those rings can download it.
 Transfers resume automatically if interrupted — no verified data is re-transferred after a crash or disconnect.
+
+Access control is enforced at the connection level via an ALPN protocol (`iroh/ring/1`). When a peer requests a blob, the sender checks whether that peer's `peer-id` belongs to any ring the blob is tagged with. If not, the transfer is denied before any data is sent.
 
 ## Features
 
@@ -16,19 +17,25 @@ Transfers resume automatically if interrupted — no verified data is re-transfe
 
 ## Install
 
-To build the binary in release mode and install it in your OS default path (e.g. `~/.cargo/bin/rdrop` on Linux and macOS), just run:
+**From source (Linux / macOS):**
 
 ```sh
-cargo install --path .
+curl -fsSL https://raw.githubusercontent.com/rikettsie/ringdrop/main/install.sh | bash
 ```
 
-After that, `rdrop` is callable from anywhere in the shell without any further configuration.
+**If you already have Rust installed:**
+
+```sh
+cargo install ringdrop
+```
+
+After installation, `rdrop` is available from anywhere in your shell. If it isn't, make sure `~/.cargo/bin` is in your `PATH`.
 
 ## Usage
 
-### Print your PeerId
+### Print your `peer-id`
 
-Share your PeerId with others so they can add you to their rings:
+Share your `peer-id` with others so they can add you to their rings:
 
 ```sh
 rdrop id
@@ -37,30 +44,30 @@ rdrop id
 ### Manage rings
 
 ```sh
-rdrop ring new <name>                                        # create a private ring
+rdrop ring new <ring-name>                                   # create a private ring
 rdrop ring list                                              # list all rings
 rdrop ring add <ring-name> <peer-id>                         # add a peer to a ring
-rdrop ring add <ring-name> <peer-id> --nickname "Alice"      # with a display label
+rdrop ring add <ring-name> <peer-id> --nickname <nickname>   # with a display label
 rdrop ring remove <ring-name> <peer-id>                      # remove a peer
 rdrop ring members <ring-name>                               # list peers of a ring
 ```
 
 ### Import and manage files (blobs)
 
-`rdrop blob` groups all blob lifecycle operations. `rdrop import` is a shortcut for `rdrop blob import`.
-
-**Import** a file or directory into the local blob store and get a ticket:
+**Import** a file or directory into the local blob store and produce a ticket:
 
 ```sh
-rdrop import file.txt                    # shortcut — warns if untagged
-rdrop import file.txt --open             # publicly accessible
-rdrop import file.txt --tag friends      # restrict to a ring
+rdrop import <file-name>                    # shortcut, warns if untagged
+rdrop import <file-name> --open             # publicly accessible
+rdrop import <file-name> --tag <ring-name>  # restrict to a ring
 
-rdrop blob import file.txt --open        # same, via blob subcommand
+rdrop blob import <file-name> --open        # same, via blob subcommand
 ```
 
-If no `--tag` or `--open` is given and the file has no existing tags, a warning is printed — the blob won't be transferred until it is tagged.
+If no `--tag` or `--open` is given and the file has no existing tags, a warning is printed. The blob cannot be transferred until it is tagged.
 If the file was already imported, the existing rings are summarised instead.
+
+`rdrop blob` groups all blob lifecycle operations. `rdrop import` is a shortcut for `rdrop blob import`.
 
 **List** all local blobs with their ring tags and share ticket:
 
@@ -68,29 +75,27 @@ If the file was already imported, the existing rings are summarised instead.
 rdrop blob list
 ```
 
-**Remove** a blob from the local store and all its ring tags:
+**Remove** a blob from the local store and all its associated tags:
 
 ```sh
-rdrop blob remove file.txt
+rdrop blob remove <file-name>
 rdrop blob remove <hash>
 ```
 
-Disk space is reclaimed on the next `rdrop serve` run (GC cycle).
-
 ### Grant or change access
 
-Tag a file with a ring at any time — before or after importing.
+Add a file to one or more rings by tagging:
 
 ```sh
-rdrop tag file.txt --ring friends   # restrict to a ring
-rdrop tag file.txt --open           # anyone with the ticket
-rdrop tag <hash>   --ring friends   # same, by BLAKE3 hash
+rdrop tag <file-name> --ring <ring-name>   # restrict to a ring
+rdrop tag <file-name> --open               # anyone with the ticket
+rdrop tag <hash>   --ring <ring-name>   # same, by BLAKE3 hash
 rdrop tag <hash>   --open
 ```
 
 ### Serve
 
-Start the node and serve all authorised blobs until `Ctrl-C`:
+Start the sharing node and serve all authorised blobs until `Ctrl-C`:
 
 ```sh
 rdrop serve
@@ -117,9 +122,9 @@ RUST_LOG=debug rdrop serve              # debug logs including iroh internals
 
 This applies to every command, not just `serve`.
 
-## How it works
+## Dependencies
 
-`ringdrop` is built on top of:
+`ringdrop` is built on:
 
 | Crate | Role |
 |---|---|
@@ -128,8 +133,6 @@ This applies to every command, not just `serve`.
 | [bao-tree](https://github.com/n0-computer/bao-tree) | bao encoding/decoding, `ChunkRanges`, bitfield conversion |
 | [redb](https://github.com/cberner/redb) | Embedded persistent store for the ring registry |
 | [tokio](https://tokio.rs) | Async runtime |
-
-Access control is enforced at the connection level via a custom ALPN protocol (`iroh/ring/1`). When a peer requests a blob, the sender checks whether that peer's `PeerId` belongs to any ring the blob is tagged with. If not, the transfer is denied before any data is sent.
 
 ## License
 

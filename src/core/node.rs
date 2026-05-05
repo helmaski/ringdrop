@@ -31,7 +31,7 @@ use iroh_blobs::{
     api::blobs::{AddPathOptions, BlobStatus, ImportMode},
     format::collection::Collection,
     store::fs::FsStore,
-    BlobFormat, BlobsProtocol, Hash,
+    BlobFormat, Hash,
 };
 use tracing::info;
 use walkdir::WalkDir;
@@ -72,11 +72,9 @@ impl Node {
             .context("opening registry")?;
 
         let gate = RingGate::new(registry.clone(), store.clone());
-        let blobs_proto = BlobsProtocol::new(&store, None);
 
         let router = Router::builder(endpoint.clone())
             .accept(SC_ALPN, gate)
-            .accept(iroh_blobs::ALPN, blobs_proto)
             .spawn();
 
         endpoint.online().await;

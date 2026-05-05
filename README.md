@@ -45,18 +45,37 @@ rdrop ring remove <ring-name> <peer-id>                      # remove a peer
 rdrop ring members <ring-name>                               # list peers of a ring
 ```
 
-### Import a file
+### Import and manage files (blobs)
 
-`import` adds the file to the blob store and prints an `rdrop://` ticket. It exits immediately — serving is a separate step.
+`rdrop blob` groups all blob lifecycle operations. `rdrop import` is a shortcut for `rdrop blob import`.
+
+**Import** a file or directory into the local blob store and get a ticket:
 
 ```sh
-rdrop import file.txt              # warns if untagged
-rdrop import file.txt --open       # publicly accessible
-rdrop import file.txt --tag friends   # restrict to a ring
+rdrop import file.txt                    # shortcut — warns if untagged
+rdrop import file.txt --open             # publicly accessible
+rdrop import file.txt --tag friends      # restrict to a ring
+
+rdrop blob import file.txt --open        # same, via blob subcommand
 ```
 
 If no `--tag` or `--open` is given and the file has no existing tags, a warning is printed — the blob won't be transferred until it is tagged.
 If the file was already imported, the existing rings are summarised instead.
+
+**List** all local blobs with their ring tags and share ticket:
+
+```sh
+rdrop blob list
+```
+
+**Remove** a blob from the local store and all its ring tags:
+
+```sh
+rdrop blob remove file.txt
+rdrop blob remove <hash>
+```
+
+Disk space is reclaimed on the next `rdrop serve` run (GC cycle).
 
 ### Grant or change access
 

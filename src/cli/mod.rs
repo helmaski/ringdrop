@@ -12,10 +12,16 @@
 //! rdrop ring add friends <peer-id>     # add a peer to a ring
 //! rdrop ring members friends
 //!
-//! # Import a file and get a ticket
+//! # Import a file and get a ticket (shortcut)
 //! rdrop import file.txt                   # untagged — warns until tagged
 //! rdrop import file.txt --open            # publicly accessible
 //! rdrop import file.txt --tag friends     # restrict to a ring
+//!
+//! # Manage blobs
+//! rdrop blob import file.txt --open
+//! rdrop blob list
+//! rdrop blob remove file.txt
+//! rdrop blob remove <hash>
 //!
 //! # Re-tag a blob at any time
 //! rdrop tag file.txt --ring friends
@@ -42,7 +48,7 @@ use crate::core::Node;
 use crate::registry::{Registry, OPEN_RING_NAME};
 use crate::ticket::ShareTicket;
 use crate::util::{default_data_dir, parse_hash};
-use command::Cmd;
+use command::{BlobCmd, Cmd};
 
 #[derive(Parser)]
 #[command(
@@ -85,13 +91,62 @@ async fn resolve_target(target: &str, data_dir: &std::path::Path) -> Result<(Has
     }
 }
 
+async fn run_import(node: &Node, path: PathBuf, tag: Option<String>, open: bool) -> Result<()> {
+    let (hash, format) = import_path(node, &path).await?;
+
+    let tag = if open {
+        Some(OPEN_RING_NAME.to_owned())
+    } else {
+        tag
+    };
+
+    if let Some(ref ring) = tag {
+        node.registry.tag_file(hash, ring)?;
+        if ring == OPEN_RING_NAME {
+            println!("Tagged as open (publicly accessible)");
+        } else {
+            println!("Tagged with ring '{ring}'");
+        }
+    } else {
+        let rings = node.registry.file_rings(hash)?;
+        if rings.is_empty() {
+            println!("Warning: not tagged — this blob won't be served to any peer.");
+            println!("Tag it with:");
+            println!("  rdrop tag {hash} --ring <ring-name>");
+            println!("  rdrop tag {hash} --open");
+        } else {
+            println!("Already tagged:");
+            for r in &rings {
+                if r.is_open() {
+                    println!("  {} (open — publicly accessible)", r.as_str());
+                } else {
+                    println!("  {}", r.as_str());
+                }
+            }
+        }
+    }
+
+    let display_name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+    let ticket = node.make_ticket(hash, format, display_name);
+    let ticket_str = ticket.to_uri()?;
+
+    println!();
+    println!("Ticket:");
+    println!("  {ticket_str}");
+    println!();
+    println!("Run `rdrop serve` to start accepting connections.");
+    println!("Peers receive with:");
+    println!("  rdrop receive {ticket_str}");
+
+    Ok(())
+}
+
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
 
     fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("warn")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
         )
         .with_target(false)
         .compact()
@@ -107,54 +162,59 @@ pub async fn run() -> Result<()> {
             command::run_ring(ring_cmd, registry)?;
         }
 
-        Cmd::Import { path, tag, open } => {
-            let node = Node::start(&data_dir).await?;
-            let (hash, format) = import_path(&node, &path).await?;
-
-            let tag = if open {
-                Some(OPEN_RING_NAME.to_owned())
-            } else {
-                tag
-            };
-
-            if let Some(ref ring) = tag {
-                node.registry.tag_file(hash, ring)?;
-                if ring == OPEN_RING_NAME {
-                    println!("Tagged as open (publicly accessible)");
-                } else {
-                    println!("Tagged with ring '{ring}'");
-                }
-            } else {
-                let rings = node.registry.file_rings(hash)?;
-                if rings.is_empty() {
-                    println!("Warning: not tagged — this blob won't be served to any peer.");
-                    println!("Tag it with:");
-                    println!("  rdrop tag {hash} --ring <ring-name>");
-                    println!("  rdrop tag {hash} --open");
-                } else {
-                    println!("Already tagged:");
-                    for r in &rings {
-                        if r.is_open() {
-                            println!("  {} (open — publicly accessible)", r.as_str());
-                        } else {
-                            println!("  {}", r.as_str());
-                        }
-                    }
-                }
+        Cmd::Blob(blob_cmd) => match blob_cmd {
+            BlobCmd::Import { path, tag, open } => {
+                let node = Node::start(&data_dir).await?;
+                run_import(&node, path, tag, open).await?;
+                node.shutdown().await?;
             }
 
-            let display_name = path.file_name().map(|n| n.to_string_lossy().into_owned());
-            let ticket = node.make_ticket(hash, format, display_name);
-            let ticket_str = ticket.to_uri()?;
+            BlobCmd::Remove { target } => {
+                let node = Node::start(&data_dir).await?;
+                let path = PathBuf::from(&target);
+                let hash = if path.exists() {
+                    let (hash, _) = import_path(&node, &path).await?;
+                    hash
+                } else {
+                    parse_hash(&target)?
+                };
+                node.registry.remove_file_tags(hash)?;
+                node.delete_blob(hash).await?;
+                println!("Removed {hash}");
+                println!("Disk space will be reclaimed on the next `rdrop serve` run.");
+                node.shutdown().await?;
+            }
 
-            println!();
-            println!("Ticket:");
-            println!("  {ticket_str}");
-            println!();
-            println!("Run `rdrop serve` to start accepting connections.");
-            println!("Peers receive with:");
-            println!("  rdrop receive {ticket_str}");
+            BlobCmd::List => {
+                let node = Node::start(&data_dir).await?;
+                let blobs = node.list_blobs().await?;
+                if blobs.is_empty() {
+                    println!("No blobs in local store.");
+                } else {
+                    println!("{} blob(s):", blobs.len());
+                    for (hash, format) in blobs {
+                        let rings = node.registry.file_rings(hash)?;
+                        let ticket = node.make_ticket(hash, format, None);
+                        let ticket_str = ticket.to_uri()?;
+                        println!();
+                        println!("  {hash}");
+                        if rings.is_empty() {
+                            println!("    rings:  (none — not accessible to any peer)");
+                        } else {
+                            let names: Vec<_> =
+                                rings.iter().map(|r| r.as_str().to_owned()).collect();
+                            println!("    rings:  {}", names.join(", "));
+                        }
+                        println!("    ticket: {ticket_str}");
+                    }
+                }
+                node.shutdown().await?;
+            }
+        },
 
+        Cmd::Import { path, tag, open } => {
+            let node = Node::start(&data_dir).await?;
+            run_import(&node, path, tag, open).await?;
             node.shutdown().await?;
         }
 

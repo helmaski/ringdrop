@@ -1,6 +1,7 @@
 # ringdrop
 
 [![Tests](https://github.com/rikettsie/ringdrop/actions/workflows/tests.yml/badge.svg)](https://github.com/rikettsie/ringdrop/actions/workflows/tests.yml)
+[![crates.io](https://img.shields.io/crates/v/ringdrop.svg)](https://crates.io/crates/ringdrop)
 
 `rdrop` is a streamed P2P file transfer tool with *ring-based* access control, built on [iroh](https://github.com/n0-computer/iroh) and [iroh-blobs](https://github.com/n0-computer/iroh-blobs).
 

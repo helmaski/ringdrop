@@ -37,10 +37,11 @@ use bao_tree::{
     BaoTree, ChunkRanges,
 };
 use futures_lite::StreamExt;
-use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointAddr};
+use iroh::{endpoint::presets, endpoint::Connection, protocol::Router, Endpoint, EndpointAddr};
 use iroh_blobs::{
     api::blobs::{AddPathOptions, BlobStatus, ImportMode},
     format::collection::Collection,
+    hashseq::HashSeq,
     store::{fs::FsStore, GcConfig, IROH_BLOCK_SIZE},
     util::RecvStreamAsyncStreamReader,
     BlobFormat, Hash, HashAndFormat,
@@ -276,13 +277,13 @@ impl Node {
 
         info!(hash = %hash, from = %node_addr.id, "starting download");
 
-        let already_have: ChunkRanges = match self.store.blobs().status(hash).await {
-            Ok(BlobStatus::Complete { .. }) => ChunkRanges::all(),
-            _ => ChunkRanges::default(),
-        };
+        let root_complete = matches!(
+            self.store.blobs().status(hash).await,
+            Ok(BlobStatus::Complete { .. })
+        );
 
-        let missing = ChunkRanges::all() & !already_have.clone();
-        if missing.is_empty() {
+        // Fast path: raw blob already complete, no network needed.
+        if root_complete && format == BlobFormat::Raw {
             info!(hash = %hash, "all chunks present — skipping download");
             return self.export(hash, format, &ticket.name, &dest).await;
         }
@@ -300,13 +301,125 @@ impl Node {
             .await
             .context("creating temp tag")?;
 
-        info!(hash = %hash, "sending range request");
-
         let conn = self
             .endpoint
             .connect(node_addr, SC_ALPN)
             .await
             .context("connecting to sender")?;
+
+        // Download the root blob if not already complete.
+        if !root_complete {
+            info!(hash = %hash, "sending range request");
+
+            let already_have = ChunkRanges::default();
+            let missing = ChunkRanges::all();
+
+            let (mut send, mut recv) = conn.open_bi().await?;
+            send.write_all(hash.as_bytes()).await?;
+            send.write_all(&encode_ranges_wire(&already_have)).await?;
+            send.finish()?;
+
+            let mut status_byte = [0u8; 1];
+            recv.read_exact(&mut status_byte)
+                .await
+                .context("reading status")?;
+
+            match Status::try_from(status_byte[0])? {
+                Status::Denied => bail!(
+                    "access denied — not in a ring for this blob.\n\
+                     Your peer-id: {}",
+                    self.endpoint.id()
+                ),
+                Status::Allowed => {}
+            }
+
+            // First 8 bytes of the bao stream are the u64-le content size.
+            let mut size_buf = [0u8; BAO_SIZE_HEADER];
+            recv.read_exact(&mut size_buf)
+                .await
+                .context("reading bao size header")?;
+            let content_size = u64::from_le_bytes(size_buf);
+
+            on_progress(0, content_size);
+
+            // Drive the bao decoder manually so we can report content-byte progress
+            // via BaoContentItem::Leaf offsets rather than raw wire bytes.
+            if let Some(size) = NonZeroU64::new(content_size) {
+                let tree = BaoTree::new(content_size, IROH_BLOCK_SIZE);
+                let iroh_blobs::api::blobs::ImportBaoHandle { tx, rx } = self
+                    .store
+                    .blobs()
+                    .import_bao(hash, size, 32)
+                    .await
+                    .map_err(io::Error::from)
+                    .context("starting bao import")?;
+                let reader = RecvStreamAsyncStreamReader::new(recv);
+                let mut decoder = ResponseDecoder::new(hash.into(), missing, tree, reader);
+
+                // `tx` must be explicitly dropped inside `driver` before it returns so
+                // that the store sees the end-of-stream and signals completion via `rx`.
+                // If we relied on scope-based drop, `tx` would outlive `driver`'s final
+                // poll (still owned by the join state machine), causing `rx.await` to
+                // block forever.
+                let driver = async move {
+                    let result = loop {
+                        match decoder.next().await {
+                            ResponseDecoderNext::Done(_) => break io::Result::Ok(()),
+                            ResponseDecoderNext::More((next, item)) => {
+                                let item = item.map_err(io::Error::other)?;
+                                if let BaoContentItem::Leaf(ref leaf) = item {
+                                    on_progress(
+                                        leaf.offset + leaf.data.len() as u64,
+                                        content_size,
+                                    );
+                                }
+                                tx.send(item).await.map_err(io::Error::from)?;
+                                decoder = next;
+                            }
+                        }
+                    };
+                    drop(tx);
+                    result
+                };
+
+                let (drive_res, rx_res) =
+                    tokio::join!(driver, async move { rx.await.map_err(io::Error::from)? });
+                drive_res.context("bao decode")?;
+                rx_res.context("bao import")?;
+            }
+
+            info!(hash = %hash, "root blob received");
+        }
+
+        // For collections: the root HashSeq lists [meta_blob, file1, file2, ...].
+        // Fetch every hash it references — Collection::load needs all of them locally.
+        if format == BlobFormat::HashSeq {
+            let root_bytes = self
+                .store
+                .blobs()
+                .get_bytes(hash)
+                .await
+                .context("reading root HashSeq")?;
+            let hash_seq = HashSeq::try_from(root_bytes).context("parsing HashSeq")?;
+            for item_hash in hash_seq {
+                info!(item_hash = %item_hash, "fetching collection item");
+                self.fetch_blob(&conn, item_hash).await?;
+            }
+        }
+
+        self.export(hash, format, &ticket.name, &dest).await
+    }
+
+    /// Fetch a single raw blob over an already-open connection, resuming if partially present.
+    async fn fetch_blob(&self, conn: &Connection, hash: Hash) -> Result<()> {
+        let already_have = match self.store.blobs().status(hash).await {
+            Ok(BlobStatus::Complete { .. }) => {
+                info!(%hash, "member already complete — skipping");
+                return Ok(());
+            }
+            _ => ChunkRanges::default(),
+        };
+        let missing = ChunkRanges::all() & !already_have.clone();
 
         let (mut send, mut recv) = conn.open_bi().await?;
         send.write_all(hash.as_bytes()).await?;
@@ -317,27 +430,17 @@ impl Node {
         recv.read_exact(&mut status_byte)
             .await
             .context("reading status")?;
-
         match Status::try_from(status_byte[0])? {
-            Status::Denied => bail!(
-                "access denied — not in a ring for this blob.\n\
-                 Your peer-id: {}",
-                self.endpoint.id()
-            ),
+            Status::Denied => bail!("member blob {hash} access denied"),
             Status::Allowed => {}
         }
 
-        // First 8 bytes of the bao stream are the u64-le content size.
         let mut size_buf = [0u8; BAO_SIZE_HEADER];
         recv.read_exact(&mut size_buf)
             .await
             .context("reading bao size header")?;
         let content_size = u64::from_le_bytes(size_buf);
 
-        on_progress(0, content_size);
-
-        // Drive the bao decoder manually so we can report content-byte progress
-        // via BaoContentItem::Leaf offsets rather than raw wire bytes.
         if let Some(size) = NonZeroU64::new(content_size) {
             let tree = BaoTree::new(content_size, IROH_BLOCK_SIZE);
             let iroh_blobs::api::blobs::ImportBaoHandle { tx, rx } = self
@@ -350,20 +453,12 @@ impl Node {
             let reader = RecvStreamAsyncStreamReader::new(recv);
             let mut decoder = ResponseDecoder::new(hash.into(), missing, tree, reader);
 
-            // `tx` must be explicitly dropped inside `driver` before it returns so
-            // that the store sees the end-of-stream and signals completion via `rx`.
-            // If we relied on scope-based drop, `tx` would outlive `driver`'s final
-            // poll (still owned by the join state machine), causing `rx.await` to
-            // block forever.
             let driver = async move {
                 let result = loop {
                     match decoder.next().await {
                         ResponseDecoderNext::Done(_) => break io::Result::Ok(()),
                         ResponseDecoderNext::More((next, item)) => {
                             let item = item.map_err(io::Error::other)?;
-                            if let BaoContentItem::Leaf(ref leaf) = item {
-                                on_progress(leaf.offset + leaf.data.len() as u64, content_size);
-                            }
                             tx.send(item).await.map_err(io::Error::from)?;
                             decoder = next;
                         }
@@ -379,9 +474,8 @@ impl Node {
             rx_res.context("bao import")?;
         }
 
-        info!(hash = %hash, "all chunks verified and written");
-
-        self.export(hash, format, &ticket.name, &dest).await
+        info!(%hash, "member blob received");
+        Ok(())
     }
 
     async fn export(

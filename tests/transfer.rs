@@ -31,6 +31,40 @@ async fn file_content_matches_after_transfer() {
 }
 
 #[tokio::test]
+async fn directory_contents_match_after_transfer() {
+    let sender = common::TestNode::start().await;
+    let receiver = common::TestNode::start().await;
+
+    let src = TempDir::new().unwrap();
+    let dir = src.path().join("mydir");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    common::write_file(&dir, "hello.txt", b"hello world").await;
+    common::write_file(&dir, "data.bin", b"\x00\x01\x02\x03").await;
+
+    let (hash, format) = sender.node.import_directory(&dir).await.unwrap();
+    sender.node.registry.tag_file(hash, OPEN_RING_NAME).unwrap();
+
+    let ticket = sender
+        .node
+        .make_ticket(hash, format, Some("mydir".into()));
+    let dest = TempDir::new().unwrap();
+    receiver.node.download(&ticket, dest.path()).await.unwrap();
+
+    let out = dest.path().join("mydir");
+    assert_eq!(
+        tokio::fs::read(out.join("hello.txt")).await.unwrap(),
+        b"hello world"
+    );
+    assert_eq!(
+        tokio::fs::read(out.join("data.bin")).await.unwrap(),
+        b"\x00\x01\x02\x03"
+    );
+
+    sender.shutdown().await;
+    receiver.shutdown().await;
+}
+
+#[tokio::test]
 async fn already_complete_blob_skips_transfer() {
     let sender = common::TestNode::start().await;
     let receiver = common::TestNode::start().await;

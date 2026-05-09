@@ -30,7 +30,8 @@ use iroh::{
     protocol::{AcceptError, ProtocolHandler},
     EndpointId,
 };
-use iroh_blobs::{store::fs::FsStore, Hash};
+use iroh_blobs::{hashseq::HashSeq, store::fs::FsStore, BlobFormat, Hash};
+use futures_lite::StreamExt;
 use iroh_io::AsyncStreamWriter;
 use tracing::{debug, info, warn};
 
@@ -146,6 +147,32 @@ impl ProtocolHandler for RingGate {
 }
 
 impl RingGate {
+    /// Returns true if `hash` is referenced by any collection the peer is allowed to access.
+    /// Iterates over all HashSeq tags; called only when the direct registry check fails.
+    async fn is_member_of_allowed_collection(&self, peer: &EndpointId, hash: &Hash) -> bool {
+        let Ok(mut stream) = self.store.tags().list().await else {
+            return false;
+        };
+        while let Some(Ok(info)) = stream.next().await {
+            if info.format != BlobFormat::HashSeq {
+                continue;
+            }
+            if !self.registry.is_allowed(peer, &info.hash).unwrap_or(false) {
+                continue;
+            }
+            // Read the raw HashSeq bytes and check if hash appears anywhere in it.
+            // This covers both the metadata blob and the file blobs.
+            if let Ok(bytes) = self.store.blobs().get_bytes(info.hash).await {
+                if let Ok(seq) = HashSeq::try_from(bytes) {
+                    if seq.into_iter().any(|h| &h == hash) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     async fn handle(&self, conn: Connection) -> Result<()> {
         let peer: EndpointId = conn.remote_id();
         while let Ok((send, recv)) = conn.accept_bi().await {
@@ -190,7 +217,9 @@ impl RingGate {
 
         debug!(%peer, %hash, "request — {} already-have ranges", range_count);
 
-        if !self.registry.is_allowed(&peer, &hash).unwrap_or(false) {
+        let allowed = self.registry.is_allowed(&peer, &hash).unwrap_or(false)
+            || self.is_member_of_allowed_collection(&peer, &hash).await;
+        if !allowed {
             warn!(%peer, %hash, "DENIED");
             send.write_all(&[Status::Denied as u8]).await?;
             send.finish()?;

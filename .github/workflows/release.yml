@@ -91,3 +91,19 @@ jobs:
             --generate-notes \
             --latest \
             artifacts/*
+
+      - name: Update Homebrew formula
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          SHA256=$(curl -sL "https://github.com/rikettsie/ringdrop/archive/refs/tags/${TAG}.tar.gz" | sha256sum | cut -d' ' -f1)
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/rikettsie/homebrew-tap.git"
+          cd homebrew-tap
+          sed -i "s|url \".*\"|url \"https://github.com/rikettsie/ringdrop/archive/refs/tags/${TAG}.tar.gz\"|" Formula/rdrop.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/rdrop.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/rdrop.rb
+          git commit -m "chore: bump rdrop to ${TAG}"
+          git push

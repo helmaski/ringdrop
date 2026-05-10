@@ -120,7 +120,6 @@ pub async fn run(cmd: BlobCmd, data_dir: &Path) -> Result<()> {
                     }
                     println!("    ticket: {ticket_str}");
                 }
-                println!("\nNote that the ticket link may change between sessions, but the blob is always uniquely identified and addressed by the protocol.");
             }
             node.shutdown().await?;
         }

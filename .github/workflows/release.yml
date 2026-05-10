@@ -82,12 +82,10 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate release notes
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-          output: RELEASE_NOTES.md
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk "/^## \[${VERSION}\]/{p=1;next} /^## \[/{p=0} p" CHANGELOG.md > RELEASE_NOTES.md
 
       - name: Create GitHub release
         env:

@@ -11,4 +11,4 @@ release:
 	git add CHANGELOG.md
 	git commit -m "chore: release v$(VERSION)"
 	git tag "v$(VERSION)"
-	git push && git push --tags
+	git push origin main --tags

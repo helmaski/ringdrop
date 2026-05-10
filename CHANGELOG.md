@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2026-05-10
+
+### Features
+
+- (**CLI**) Change --tag with --ring option in blob import
+
+### Miscellaneous Tasks
+
+- Add git-cliff support for CHANGELOG.md generation
+
 ## [0.4.1] - 2026-05-10
 
 ### Miscellaneous Tasks

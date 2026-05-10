@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2026-05-10
+
+### Bug Fixes
+
+- Keep only the relay URL in the share ticket
+
+### Miscellaneous Tasks
+
+- (**release**) Extract release notes from CHANGELOG.md
+
 ## [0.4.2] - 2026-05-10
 
 ### Features

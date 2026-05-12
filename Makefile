@@ -1,7 +1,7 @@
 .PHONY: release
 
 # Prepare and push a release.
-# Usage: make release VERSION=0.5.0
+# Usage example: make release VERSION=0.5.0
 release:
 	@if [ -z "$(VERSION)" ]; then \
 		echo "Usage: make release VERSION=x.y.z"; \

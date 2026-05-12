@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 
 use crate::config::Config;
 use crate::core::Node;
-use crate::registry::{RedbRegistry, Registry, OPEN_RING_NAME};
 use crate::util::parse_hash;
+use iroh_rings::{RedbRegistry, Registry, OPEN_RING_NAME};
 
 use super::import_path;
 
@@ -37,11 +37,11 @@ pub async fn run_tag(
     let (hash, registry) = resolve_target(&target, data_dir).await?;
 
     for ring in &rings {
-        registry.add_ring_to_prop(hash, ring)?;
+        registry.add_ring_to_resource(*hash.as_bytes(), ring)?;
         println!("Tagged {hash} with ring '{ring}'");
     }
     if open {
-        registry.add_ring_to_prop(hash, OPEN_RING_NAME)?;
+        registry.add_ring_to_resource(*hash.as_bytes(), OPEN_RING_NAME)?;
         println!("Tagged {hash} as open (publicly accessible)");
     }
     Ok(())
@@ -51,7 +51,7 @@ pub async fn run_tags(target: String, data_dir: &Path) -> Result<()> {
     tokio::fs::create_dir_all(data_dir).await?;
     let (hash, registry) = resolve_target(&target, data_dir).await?;
 
-    let rings = registry.list_prop_rings(hash)?;
+    let rings = registry.list_resource_rings(*hash.as_bytes())?;
     if rings.is_empty() {
         println!("{hash}: no rings (access denied to all peers)");
     } else {

@@ -5,7 +5,7 @@ use clap::{ArgGroup, Subcommand};
 use iroh_blobs::{BlobFormat, Hash};
 
 use crate::core::Node;
-use crate::registry::RedbRegistry;
+use iroh_rings::RedbRegistry;
 
 pub mod blob;
 pub mod id;

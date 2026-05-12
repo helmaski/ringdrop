@@ -1,6 +1,6 @@
 mod common;
 
-use ringdrop::registry::{Registry, OPEN_RING_NAME};
+use iroh_rings::{Registry, OPEN_RING_NAME};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -15,7 +15,7 @@ async fn open_ring_allows_any_peer() {
     sender
         .node
         .registry
-        .add_ring_to_prop(hash, OPEN_RING_NAME)
+        .add_ring_to_resource(*hash.as_bytes(), OPEN_RING_NAME)
         .unwrap();
 
     let ticket = sender
@@ -51,7 +51,7 @@ async fn private_ring_allows_member() {
     sender
         .node
         .registry
-        .add_ring_to_prop(hash, "friends")
+        .add_ring_to_resource(*hash.as_bytes(), "friends")
         .unwrap();
 
     let ticket = sender
@@ -80,7 +80,11 @@ async fn private_ring_denies_non_member() {
     let (hash, format) = sender.node.import_file(&file).await.unwrap();
     sender.node.registry.create_ring("vip").unwrap();
     // receiver deliberately NOT added to "vip"
-    sender.node.registry.add_ring_to_prop(hash, "vip").unwrap();
+    sender
+        .node
+        .registry
+        .add_ring_to_resource(*hash.as_bytes(), "vip")
+        .unwrap();
 
     let ticket = sender.node.make_ticket(hash, format, None);
     let dest = TempDir::new().unwrap();
@@ -108,7 +112,7 @@ async fn untagged_blob_is_denied() {
     let file = common::write_file(src.path(), "data.txt", b"some data").await;
 
     let (hash, format) = sender.node.import_file(&file).await.unwrap();
-    // no add_ring_to_prop — fail-closed default
+    // no add_ring_to_resource — fail-closed default
 
     let ticket = sender.node.make_ticket(hash, format, None);
     let dest = TempDir::new().unwrap();

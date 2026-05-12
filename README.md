@@ -128,7 +128,7 @@ This applies to every command, not just `share`.
 
 ## Contributing
 
-After cloning, activate the pre-commit hooks (runs `cargo fmt --check` and `cargo clippy` before every commit):
+After cloning, activate the pre-commit hooks (it runs `cargo fmt --check` and `cargo clippy` before every commit, and tag verifications before every push):
 
 ```sh
 git config core.hooksPath .githooks

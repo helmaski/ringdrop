@@ -2,8 +2,8 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
-use crate::registry::{RedbRegistry, Registry, OPEN_RING_NAME};
 use crate::util::parse_peer_id;
+use iroh_rings::{RedbRegistry, Registry, OPEN_RING_NAME};
 
 use super::RingCmd;
 

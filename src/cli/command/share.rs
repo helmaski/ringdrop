@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 
 use crate::config::Config;
 use crate::core::Node;
-use crate::registry::RedbRegistry;
+use iroh_rings::RedbRegistry;
 
 pub async fn run(data_dir: &Path) -> Result<()> {
     let cfg = Config::load_or_create(data_dir).context("loading config")?;

@@ -27,7 +27,8 @@ use walkdir::WalkDir;
 use super::protocol::{RingGate, RingReceiver, SC_ALPN};
 use super::ticket::ShareTicket;
 use crate::config::Config;
-use crate::registry::Registry;
+use iroh_rings::FsTransfer;
+use iroh_rings::Registry;
 
 pub struct Node<R> {
     pub endpoint: Endpoint,
@@ -63,7 +64,10 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             .await
             .context("loading FsStore")?;
 
-        let gate = RingGate::new(registry.clone(), store.clone());
+        let gate = RingGate::new(
+            registry.clone(),
+            FsTransfer::new(store.clone(), registry.clone()),
+        );
 
         let router = Router::builder(endpoint.clone())
             .accept(SC_ALPN, gate)

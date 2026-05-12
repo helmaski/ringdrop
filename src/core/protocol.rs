@@ -19,7 +19,10 @@ use iroh_blobs::{
 };
 use tracing::info;
 
-use super::{encode_ranges_wire, Status, BAO_SIZE_HEADER};
+pub(crate) use iroh_rings::protocol::{RingGate, Status, SC_ALPN};
+pub(crate) use iroh_rings::transfers::fs::encode_ranges_wire;
+
+const BAO_SIZE_HEADER: usize = size_of::<u64>();
 
 pub(crate) struct RingReceiver {
     store: FsStore,
@@ -77,7 +80,7 @@ impl RingReceiver {
         self.export(hash, format, name, dest).await
     }
 
-    /// Fetch a single raw blob over `conn`.
+    /// Fetch a single raw blob over the connection.
     ///
     /// Skips silently if the blob is already complete in the local store.
     /// `on_progress` is `None` when the caller wants to suppress progress

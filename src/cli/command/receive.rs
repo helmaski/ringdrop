@@ -6,7 +6,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::config::Config;
 use crate::core::Node;
 use crate::core::ShareTicket;
-use crate::registry::RedbRegistry;
+use iroh_rings::RedbRegistry;
 
 pub fn check_dest(
     dest: &Path,

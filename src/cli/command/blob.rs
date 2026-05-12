@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 
 use crate::config::Config;
 use crate::core::Node;
-use crate::registry::{RedbRegistry, Registry, OPEN_RING_NAME};
 use crate::util::parse_hash;
+use iroh_rings::{RedbRegistry, Registry, OPEN_RING_NAME};
 
 use super::{import_path, BlobCmd};
 
@@ -38,7 +38,7 @@ pub(super) async fn run_import_with_node(
     };
 
     if effective_rings.is_empty() {
-        let existing = node.registry.list_prop_rings(hash)?;
+        let existing = node.registry.list_resource_rings(*hash.as_bytes())?;
         if existing.is_empty() {
             println!("Warning: not tagged — this blob won't be served to any peer.");
             println!("Tag it with:");
@@ -56,7 +56,7 @@ pub(super) async fn run_import_with_node(
         }
     } else {
         for ring in &effective_rings {
-            node.registry.add_ring_to_prop(hash, ring)?;
+            node.registry.add_ring_to_resource(*hash.as_bytes(), ring)?;
             if ring == OPEN_RING_NAME {
                 println!("Tagged as open (publicly accessible)");
             } else {
@@ -96,7 +96,7 @@ pub async fn run(cmd: BlobCmd, data_dir: &Path) -> Result<()> {
             } else {
                 parse_hash(&target)?
             };
-            node.registry.remove_ring_from_prop(hash)?;
+            node.registry.remove_ring_from_resource(*hash.as_bytes())?;
             node.delete_blob(hash).await?;
             println!("Removed {hash}");
             println!("Disk space will be reclaimed on the next `rdrop share` run.");
@@ -114,7 +114,7 @@ pub async fn run(cmd: BlobCmd, data_dir: &Path) -> Result<()> {
             } else {
                 println!("{} Blobs:", blobs.len());
                 for (hash, format, name) in blobs {
-                    let rings = node.registry.list_prop_rings(hash)?;
+                    let rings = node.registry.list_resource_rings(*hash.as_bytes())?;
                     let ticket = node.make_ticket(hash, format, Some(name.clone()));
                     let ticket_str = ticket.to_uri()?;
                     println!("\n  {hash}  ({name})");

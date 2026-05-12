@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use iroh_rings::RedbRegistry;
 use ringdrop::config::Config;
 use ringdrop::core::Node;
-use ringdrop::registry::RedbRegistry;
 use tempfile::TempDir;
 use tokio::fs;
 

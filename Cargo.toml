@@ -1,3 +1,6 @@
+[workspace]
+resolver = "2"
+
 [package]
 name = "ringdrop"
 version = "0.4.3"
@@ -17,6 +20,8 @@ name = "rdrop"
 path = "src/main.rs"
 
 [dependencies]
+iroh-rings = { version = "0.1.2", features = ["redb", "fs"] }
+
 # Core components: transport protocol, chunking, concurrency
 iroh = "0.98.2"
 iroh-blobs = { version = "0.100", features = ["fs-store"] }
@@ -36,6 +41,7 @@ redb = "4"
 clap = { version = "4", features = ["derive", "env"] }
 
 # Other utilities
+hex = "0.4"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

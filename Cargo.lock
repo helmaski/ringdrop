@@ -1946,6 +1946,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-rings"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cb9ef2f47d1ce1f2698373ff661262c35a4e33cc4c72ea60668def1f5e9b74b"
+dependencies = [
+ "anyhow",
+ "bao-tree",
+ "bytes",
+ "futures-lite",
+ "hex",
+ "iroh",
+ "iroh-blobs",
+ "iroh-io",
+ "redb 4.1.0",
+ "serde",
+ "serde_millis",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "iroh-tickets"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3189,10 +3210,12 @@ dependencies = [
  "data-encoding",
  "dirs-next",
  "futures-lite",
+ "hex",
  "indicatif",
  "iroh",
  "iroh-blobs",
  "iroh-io",
+ "iroh-rings",
  "redb 4.1.0",
  "serde",
  "serde_json",

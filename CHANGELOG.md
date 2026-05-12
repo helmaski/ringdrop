@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-05-12
+
+### Documentation
+
+- Update README.md referencing /iroh-rings/0 ALPN
+
 ## [0.5.0] - 2026-05-12
 
 ### Refactoring

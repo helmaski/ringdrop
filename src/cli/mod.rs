@@ -66,7 +66,7 @@ pub async fn run() -> Result<()> {
     let cli = Cli::parse();
 
     let default_filter = if matches!(cli.command, Cmd::Share) {
-        "ringdrop=info"
+        "ringdrop=info,iroh_rings=info"
     } else {
         "warn"
     };

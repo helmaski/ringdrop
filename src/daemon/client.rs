@@ -28,7 +28,7 @@ impl DaemonClient {
     ///
     /// A UUID v4 `req_id` is generated automatically and injected into the
     /// request before sending; the same id is echoed back on every response
-    /// event, allowing multiplexed connections in the future.
+    /// event, allowing multiplexed connections.
     pub async fn send(&self, op: Op, mut on_event: impl FnMut(Event)) -> Result<()> {
         let req = Request {
             req_id: Some(Uuid::new_v4()),

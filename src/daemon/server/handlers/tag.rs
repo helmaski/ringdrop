@@ -19,6 +19,14 @@ pub async fn handle_tag(
     rings: Vec<String>,
     open: bool,
 ) -> Result<()> {
+    if rings.is_empty() && !open {
+        anyhow::bail!(
+            "nothing to tag: specify at least one --ring <name> or --open\n\
+             \n\
+             Examples:\n  rdrop tag {target} --ring friends\n  rdrop tag {target} --open"
+        );
+    }
+
     let path = PathBuf::from(&target);
     let hash = if path.exists() {
         let (hash, _) = node.import_path(&path).await?;

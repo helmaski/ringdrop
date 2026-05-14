@@ -1,7 +1,24 @@
 mod common;
 
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::TcpStream;
+
 use ringdrop::daemon::client::DaemonClient;
-use ringdrop::daemon::protocol::{EventKind, Op};
+use ringdrop::daemon::protocol::{Event, EventKind, Op};
+
+/// Connect to the daemon, send a raw JSON line, and return the first event.
+async fn send_raw(port: u16, json: &str) -> Event {
+    let stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+    let (reader, mut writer) = stream.into_split();
+    writer
+        .write_all(format!("{json}\n").as_bytes())
+        .await
+        .unwrap();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+    reader.read_line(&mut line).await.unwrap();
+    serde_json::from_str(line.trim()).expect("daemon sent non-JSON")
+}
 
 #[tokio::test]
 async fn node_id_returns_a_non_empty_string() {
@@ -102,6 +119,51 @@ async fn ring_add_self_is_rejected_via_daemon() {
         err.to_string().contains("yourself"),
         "expected 'yourself' in error message; got: {err}"
     );
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn tag_with_no_rings_and_no_open_returns_error() {
+    let daemon = common::TestDaemon::start().await;
+    let err = daemon
+        .client
+        .run(Op::Tag {
+            target: "deadbeef".into(),
+            rings: vec![],
+            open: false,
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("nothing to tag"),
+        "expected 'nothing to tag' in error; got: {err}"
+    );
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn parse_failure_with_valid_req_id_echoes_it_back() {
+    let daemon = common::TestDaemon::start().await;
+    let req_id = "550e8400-e29b-41d4-a716-446655440000";
+    let event = send_raw(
+        daemon.port,
+        &format!(r#"{{"req_id":"{req_id}","op":"nonexistent"}}"#),
+    )
+    .await;
+    assert_eq!(event.req_id.to_string(), req_id);
+    assert!(matches!(event.kind, EventKind::Error { .. }));
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn parse_failure_with_invalid_json_uses_nil_uuid() {
+    let daemon = common::TestDaemon::start().await;
+    let event = send_raw(daemon.port, "not json at all").await;
+    assert_eq!(
+        event.req_id.to_string(),
+        "00000000-0000-0000-0000-000000000000"
+    );
+    assert!(matches!(event.kind, EventKind::Error { .. }));
     daemon.shutdown().await;
 }
 

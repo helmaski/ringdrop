@@ -93,7 +93,14 @@ async fn handle_connection(
     let req: Request = match serde_json::from_str(line.trim()) {
         Ok(r) => r,
         Err(e) => {
-            emit(&mut writer, &Event::error(Uuid::new_v4(), e.to_string())).await;
+            // Best-effort: recover req_id from the raw JSON so the client can
+            // correlate the error. Falls back to Uuid::nil() (all zeros) when
+            // the payload is not even valid JSON or carries no req_id field.
+            let req_id = serde_json::from_str::<serde_json::Value>(line.trim())
+                .ok()
+                .and_then(|v| v.get("req_id")?.as_str()?.parse::<Uuid>().ok())
+                .unwrap_or_else(Uuid::nil);
+            emit(&mut writer, &Event::error(req_id, e.to_string())).await;
             return Ok(());
         }
     };
@@ -104,16 +111,29 @@ async fn handle_connection(
     tokio::spawn(dispatch(req.op, req_id, node, tx, shutdown));
 
     while let Some(event) = rx.recv().await {
-        emit(&mut writer, &event).await;
+        if !emit(&mut writer, &event).await {
+            break;
+        }
     }
 
     Ok(())
 }
 
-async fn emit(writer: &mut (impl AsyncWriteExt + Unpin), event: &Event) {
-    if let Ok(json) = serde_json::to_string(event) {
-        let _ = writer.write_all(format!("{json}\n").as_bytes()).await;
-    }
+/// Write one event to the TCP stream. Returns `false` if the connection should
+/// be closed — either because the event could not be serialized (logged as an
+/// error) or because the write itself failed (client disconnected, not logged).
+async fn emit(writer: &mut (impl AsyncWriteExt + Unpin), event: &Event) -> bool {
+    let json = match serde_json::to_string(event) {
+        Ok(j) => j,
+        Err(e) => {
+            error!("failed to serialize event, closing connection: {e}");
+            return false;
+        }
+    };
+    writer
+        .write_all(format!("{json}\n").as_bytes())
+        .await
+        .is_ok()
 }
 
 async fn dispatch(

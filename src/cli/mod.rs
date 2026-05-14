@@ -3,6 +3,11 @@
 //! # Usage
 //!
 //! ```text
+//! # Manage the background daemon
+//! rdrop daemon start                   # start daemon in the background
+//! rdrop daemon stop                    # stop the running daemon
+//! rdrop daemon status                  # show daemon status and node ID
+//!
 //! # Print your peer-id so others can add you to their rings
 //! rdrop id
 //!
@@ -28,9 +33,6 @@
 //! rdrop tag file.txt --ring friends
 //! rdrop tag <hash> --open
 //!
-//! # Start serving all authorised blobs
-//! rdrop share
-//!
 //! # Receive — resumes automatically if interrupted
 //! rdrop receive rdrop://ABCDEF... [--dest ./downloads]
 //! ```
@@ -44,7 +46,7 @@ use clap::Parser;
 use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::util::default_data_dir;
-use command::Cmd;
+use command::{Cmd, DaemonCmd};
 
 #[derive(Parser)]
 #[command(
@@ -65,7 +67,7 @@ struct Cli {
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    let default_filter = if matches!(cli.command, Cmd::Share) {
+    let default_filter = if matches!(cli.command, Cmd::Daemon(DaemonCmd::Run)) {
         "ringdrop=info,iroh_rings=info"
     } else {
         "warn"
@@ -87,7 +89,12 @@ pub async fn run() -> Result<()> {
         Cmd::Import { path, rings, open } => {
             command::blob::run_import(path, rings, open, &data_dir).await?;
         }
-        Cmd::Share => command::share::run(&data_dir).await?,
+        Cmd::Daemon(cmd) => match cmd {
+            DaemonCmd::Start => command::daemon::run_start(&data_dir).await?,
+            DaemonCmd::Stop => command::daemon::run_stop(&data_dir).await?,
+            DaemonCmd::Status => command::daemon::run_status(&data_dir).await?,
+            DaemonCmd::Run => command::daemon::run_serve(&data_dir).await?,
+        },
         Cmd::Receive {
             ticket,
             dest,

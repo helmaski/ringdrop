@@ -8,10 +8,10 @@ use crate::core::Node;
 use iroh_rings::RedbRegistry;
 
 pub mod blob;
+pub mod daemon;
 pub mod id;
 pub mod receive;
 pub mod ring;
-pub mod share;
 pub mod tag;
 
 #[derive(Subcommand)]
@@ -38,8 +38,9 @@ pub enum Cmd {
         open: bool,
     },
 
-    /// Start the node and share all authorised blobs until Ctrl-C
-    Share,
+    /// Manage the background daemon (serves all authorised blobs)
+    #[command(subcommand)]
+    Daemon(DaemonCmd),
 
     /// Download a file from a ringdrop ticket (automatically resumes if interrupted)
     Receive {
@@ -78,6 +79,19 @@ pub enum Cmd {
 
     /// Print your peer-id (i.e. this node public-id) so others can add you to their rings
     Id,
+}
+
+#[derive(Subcommand)]
+pub enum DaemonCmd {
+    /// Start the daemon in the background
+    Start,
+    /// Stop a running daemon
+    Stop,
+    /// Show daemon status and node ID
+    Status,
+    /// Run the daemon in the foreground (used internally by `start`)
+    #[command(hide = true)]
+    Run,
 }
 
 #[derive(Subcommand)]

@@ -1,0 +1,126 @@
+use std::path::Path;
+use std::process::Stdio;
+use std::time::Duration;
+
+use anyhow::{Context, Result};
+
+use crate::config::Config;
+use crate::core::Node;
+use crate::daemon::client::DaemonClient;
+use crate::daemon::protocol::Op;
+use crate::daemon::{pid, server::DaemonServer};
+use iroh_rings::RedbRegistry;
+
+pub async fn run_start(data_dir: &Path) -> Result<()> {
+    let port = Config::load_or_create(data_dir)?.daemon_port;
+    let client = DaemonClient::new(port);
+
+    if client.is_running().await {
+        println!("Daemon is already running.");
+        return Ok(());
+    }
+
+    let exe = std::env::current_exe().context("could not resolve current executable path")?;
+    let data_dir_str = data_dir
+        .to_str()
+        .context("data_dir path is not valid UTF-8")?;
+
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.args(["daemon", "run", "--data-dir", data_dir_str])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        cmd.creation_flags(0x00000008 | 0x00000200);
+    }
+
+    cmd.spawn().context("failed to spawn daemon process")?;
+
+    // Poll until the daemon is reachable (up to 3s).
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if client.is_running().await {
+            let node_id = query_node_id(&client).await.unwrap_or_else(|_| "?".into());
+            println!("Daemon started. Node ID: {node_id}");
+            return Ok(());
+        }
+    }
+
+    anyhow::bail!("daemon did not become reachable within 3s — check logs")
+}
+
+pub async fn run_stop(data_dir: &Path) -> Result<()> {
+    let port = Config::load_or_create(data_dir)?.daemon_port;
+    let client = DaemonClient::new(port);
+
+    if !client.is_running().await {
+        println!("Daemon is not running.");
+        return Ok(());
+    }
+
+    client.run(Op::Shutdown).await?;
+
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if !client.is_running().await {
+            pid::remove(data_dir);
+            println!("Daemon stopped.");
+            return Ok(());
+        }
+    }
+
+    anyhow::bail!("daemon did not stop within 3s")
+}
+
+pub async fn run_status(data_dir: &Path) -> Result<()> {
+    let port = Config::load_or_create(data_dir)?.daemon_port;
+    let client = DaemonClient::new(port);
+
+    if !client.is_running().await {
+        println!("Daemon is not running. Start it with: rdrop daemon start");
+        return Ok(());
+    }
+
+    match query_node_id(&client).await {
+        Ok(id) => println!("Daemon running. Node ID: {id}"),
+        Err(e) => println!("Daemon running but failed to get node ID: {e}"),
+    }
+    Ok(())
+}
+
+pub async fn run_serve(data_dir: &Path) -> Result<()> {
+    let cfg = Config::load_or_create(data_dir).context("loading config")?;
+    let port = cfg.daemon_port;
+    let registry =
+        RedbRegistry::open(data_dir.join("registry.redb")).context("opening registry")?;
+    let node = Node::start(data_dir, cfg, registry).await?;
+
+    pid::write(data_dir).context("writing PID file")?;
+
+    let result = DaemonServer::bind(node, port).await?.run().await;
+
+    pid::remove(data_dir);
+    result
+}
+
+async fn query_node_id(client: &DaemonClient) -> Result<String> {
+    let mut node_id = String::new();
+    client
+        .send(Op::NodeId, |event| {
+            if let crate::daemon::protocol::EventKind::Line { text } = event.kind {
+                node_id = text;
+            }
+        })
+        .await?;
+    Ok(node_id)
+}

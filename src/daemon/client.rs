@@ -31,7 +31,7 @@ impl DaemonClient {
     /// event, allowing multiplexed connections.
     pub async fn send(&self, op: Op, mut on_event: impl FnMut(Event)) -> Result<()> {
         let req = Request {
-            req_id: Some(Uuid::new_v4()),
+            req_id: Uuid::new_v4(),
             op,
         };
 

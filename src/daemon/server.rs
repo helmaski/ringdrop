@@ -93,7 +93,7 @@ async fn handle_connection(
     let req: Request = match serde_json::from_str(line.trim()) {
         Ok(r) => r,
         Err(e) => {
-            emit(&mut writer, &Event::error(None, e.to_string())).await;
+            emit(&mut writer, &Event::error(Uuid::new_v4(), e.to_string())).await;
             return Ok(());
         }
     };
@@ -122,7 +122,7 @@ async fn send(tx: &mpsc::Sender<Event>, event: Event) {
 
 async fn dispatch(
     op: Op,
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: Arc<Node<RedbRegistry>>,
     tx: mpsc::Sender<Event>,
     shutdown: Arc<Notify>,
@@ -141,7 +141,7 @@ async fn dispatch(
 
 async fn handle_op(
     op: Op,
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
 ) -> Result<()> {
@@ -216,7 +216,7 @@ async fn handle_op(
     Ok(())
 }
 
-async fn send_lines(tx: &mpsc::Sender<Event>, req_id: Option<Uuid>, lines: &[String]) {
+async fn send_lines(tx: &mpsc::Sender<Event>, req_id: Uuid, lines: &[String]) {
     for line in lines {
         send(tx, Event::line(req_id, line.clone())).await;
     }
@@ -225,7 +225,7 @@ async fn send_lines(tx: &mpsc::Sender<Event>, req_id: Option<Uuid>, lines: &[Str
 // ── blob handlers ─────────────────────────────────────────────────────────────
 
 async fn handle_import(
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
     path: PathBuf,
@@ -315,7 +315,7 @@ async fn handle_import(
 }
 
 async fn handle_blob_list(
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
 ) -> Result<()> {
@@ -351,7 +351,7 @@ async fn handle_blob_list(
 }
 
 async fn handle_blob_remove(
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
     target: String,
@@ -378,7 +378,7 @@ async fn handle_blob_remove(
 // ── tag handlers ──────────────────────────────────────────────────────────────
 
 async fn handle_tag(
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
     target: String,
@@ -417,7 +417,7 @@ async fn handle_tag(
 }
 
 async fn handle_tags(
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
     target: String,
@@ -553,7 +553,7 @@ fn ring_members_lines(registry: &impl Registry, ring: &str) -> Result<Vec<String
 // ── receive handler ───────────────────────────────────────────────────────────
 
 async fn handle_receive(
-    req_id: Option<Uuid>,
+    req_id: Uuid,
     node: &Node<RedbRegistry>,
     tx: &mpsc::Sender<Event>,
     ticket_str: String,

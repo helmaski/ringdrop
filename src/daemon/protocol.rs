@@ -14,8 +14,7 @@ use uuid::Uuid;
 /// files simultaneously).
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Request {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub req_id: Option<Uuid>,
+    pub req_id: Uuid,
     #[serde(flatten)]
     pub op: Op,
 }
@@ -72,8 +71,7 @@ pub enum Op {
 /// the originating [`Request`], enabling multiplexed connections.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Event {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub req_id: Option<Uuid>,
+    pub req_id: Uuid,
     #[serde(flatten)]
     pub kind: EventKind,
 }
@@ -92,28 +90,28 @@ pub enum EventKind {
 }
 
 impl Event {
-    pub fn line(req_id: Option<Uuid>, text: impl Into<String>) -> Self {
+    pub fn line(req_id: Uuid, text: impl Into<String>) -> Self {
         Self {
             req_id,
             kind: EventKind::Line { text: text.into() },
         }
     }
 
-    pub fn progress(req_id: Option<Uuid>, done: u64, total: u64) -> Self {
+    pub fn progress(req_id: Uuid, done: u64, total: u64) -> Self {
         Self {
             req_id,
             kind: EventKind::Progress { done, total },
         }
     }
 
-    pub fn done(req_id: Option<Uuid>) -> Self {
+    pub fn done(req_id: Uuid) -> Self {
         Self {
             req_id,
             kind: EventKind::Done,
         }
     }
 
-    pub fn error(req_id: Option<Uuid>, message: impl Into<String>) -> Self {
+    pub fn error(req_id: Uuid, message: impl Into<String>) -> Self {
         Self {
             req_id,
             kind: EventKind::Error {
@@ -152,85 +150,104 @@ mod tests {
         assert_eq!(json, r#"{"op":"ring_new","name":"friends"}"#);
     }
 
-    #[test]
-    fn request_with_no_req_id_omits_field() {
-        let req = Request {
-            req_id: None,
-            op: Op::NodeId,
-        };
-        assert_eq!(serde_json::to_string(&req).unwrap(), r#"{"op":"node_id"}"#);
-    }
+    // ── Request: req_id is mandatory ─────────────────────────────────────────
 
     #[test]
-    fn request_with_req_id_includes_field() {
+    fn request_serializes_req_id() {
         let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let req = Request {
-            req_id: Some(id),
+            req_id: id,
             op: Op::BlobList,
         };
-        let json = serde_json::to_string(&req).unwrap();
         assert_eq!(
-            json,
+            serde_json::to_string(&req).unwrap(),
             r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","op":"blob_list"}"#
         );
     }
 
     #[test]
-    fn event_done_with_no_req_id_omits_field() {
+    fn request_without_req_id_fails_to_deserialize() {
+        let result: Result<Request, _> = serde_json::from_str(r#"{"op":"node_id"}"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn request_with_empty_req_id_fails_to_deserialize() {
+        let result: Result<Request, _> = serde_json::from_str(r#"{"req_id":"","op":"node_id"}"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn request_with_malformed_req_id_fails_to_deserialize() {
+        let result: Result<Request, _> =
+            serde_json::from_str(r#"{"req_id":"not-a-uuid","op":"node_id"}"#);
+        assert!(result.is_err());
+    }
+
+    // ── Event: req_id is mandatory ────────────────────────────────────────────
+
+    #[test]
+    fn event_done_serializes_req_id_and_type() {
+        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         assert_eq!(
-            serde_json::to_string(&Event::done(None)).unwrap(),
-            r#"{"type":"done"}"#
+            serde_json::to_string(&Event::done(id)).unwrap(),
+            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","type":"done"}"#
         );
     }
 
     #[test]
-    fn event_line_serializes_type_and_text() {
-        let json = serde_json::to_string(&Event::line(None, "hello world")).unwrap();
-        assert_eq!(json, r#"{"type":"line","text":"hello world"}"#);
+    fn event_line_serializes_req_id_type_and_text() {
+        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        assert_eq!(
+            serde_json::to_string(&Event::line(id, "hello world")).unwrap(),
+            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","type":"line","text":"hello world"}"#
+        );
     }
 
     #[test]
     fn event_progress_serializes_correctly() {
-        let json = serde_json::to_string(&Event::progress(None, 50, 100)).unwrap();
-        assert_eq!(json, r#"{"type":"progress","done":50,"total":100}"#);
-    }
-
-    #[test]
-    fn event_error_serializes_correctly() {
-        let json = serde_json::to_string(&Event::error(None, "something went wrong")).unwrap();
-        assert_eq!(json, r#"{"type":"error","message":"something went wrong"}"#);
-    }
-
-    #[test]
-    fn event_with_req_id_includes_field() {
         let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
-        let json = serde_json::to_string(&Event::line(Some(id), "hi")).unwrap();
         assert_eq!(
-            json,
-            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","type":"line","text":"hi"}"#
+            serde_json::to_string(&Event::progress(id, 50, 100)).unwrap(),
+            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","type":"progress","done":50,"total":100}"#
         );
     }
 
     #[test]
+    fn event_error_serializes_correctly() {
+        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        assert_eq!(
+            serde_json::to_string(&Event::error(id, "something went wrong")).unwrap(),
+            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","type":"error","message":"something went wrong"}"#
+        );
+    }
+
+    #[test]
+    fn event_without_req_id_fails_to_deserialize() {
+        let result: Result<Event, _> = serde_json::from_str(r#"{"type":"done"}"#);
+        assert!(result.is_err());
+    }
+
+    // ── Round-trips ───────────────────────────────────────────────────────────
+
+    #[test]
     fn request_round_trips_through_json() {
-        let id = Uuid::new_v4();
         let original = Request {
-            req_id: Some(id),
+            req_id: Uuid::new_v4(),
             op: Op::RingNew {
                 name: "work".into(),
             },
         };
-        let json = serde_json::to_string(&original).unwrap();
-        let parsed: Request = serde_json::from_str(&json).unwrap();
+        let parsed: Request =
+            serde_json::from_str(&serde_json::to_string(&original).unwrap()).unwrap();
         assert_eq!(parsed, original);
     }
 
     #[test]
     fn event_round_trips_through_json() {
-        let id = Uuid::new_v4();
-        let original = Event::progress(Some(id), 42, 100);
-        let json = serde_json::to_string(&original).unwrap();
-        let parsed: Event = serde_json::from_str(&json).unwrap();
+        let original = Event::progress(Uuid::new_v4(), 42, 100);
+        let parsed: Event =
+            serde_json::from_str(&serde_json::to_string(&original).unwrap()).unwrap();
         assert_eq!(parsed, original);
     }
 }

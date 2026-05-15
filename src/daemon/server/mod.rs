@@ -28,7 +28,7 @@ impl DaemonServer {
         let listener = TcpListener::bind(("127.0.0.1", port))
             .await
             .map_err(|e| anyhow::anyhow!("cannot bind to port {port}: {e}"))?;
-        info!(port, "daemon listening");
+        info!(port, "Rdrop daemon listening");
         Ok(Self {
             node: Arc::new(node),
             listener,

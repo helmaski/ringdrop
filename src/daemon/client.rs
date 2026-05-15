@@ -40,7 +40,7 @@ impl DaemonClient {
 
         let stream = TcpStream::connect(self.addr).await.with_context(|| {
             format!(
-                "cannot connect to daemon at {} — start it with: rdrop daemon start",
+                "cannot connect to rdrop daemon at {} — start it with: rdrop daemon start",
                 self.addr
             )
         })?;
@@ -55,7 +55,7 @@ impl DaemonClient {
                 .next()
                 .await
                 .ok_or_else(|| {
-                    anyhow::anyhow!("daemon closed connection before sending Done or Error")
+                    anyhow::anyhow!("rdrop daemon closed connection before sending Done or Error")
                 })?
                 .context("framing error reading from daemon")?;
             let event: Event = serde_json::from_str(&line)

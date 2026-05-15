@@ -15,7 +15,7 @@ pub async fn run_start(data_dir: &Path) -> Result<()> {
     let client = super::daemon_client(data_dir)?;
 
     if client.is_running().await {
-        println!("Daemon is already running.");
+        println!("Rdrop daemon is already running.");
         return Ok(());
     }
 
@@ -30,12 +30,19 @@ pub async fn run_start(data_dir: &Path) -> Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 
+    // When pressing Ctrl-C in the terminal, the kernel sends SIGINT
+    // to every process in the foreground process group.
+    // Since the daemon is in its own separate group, it doesn't receive
+    // that signal (only the parent `daemon start` does).
+    // The daemon keeps running after the parent exits.
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         cmd.process_group(0);
     }
 
+    // Windows has no SIGINT, so the following flags achieve the same isolation
+    // via the Windows API.
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -49,20 +56,22 @@ pub async fn run_start(data_dir: &Path) -> Result<()> {
     for _ in 0..30 {
         tokio::time::sleep(Duration::from_millis(100)).await;
         if client.is_running().await {
-            let node_id = query_node_id(&client).await.unwrap_or_else(|_| "?".into());
-            println!("Daemon started. Node ID: {node_id}");
+            let node_id = query_node_info(&client)
+                .await
+                .unwrap_or_else(|_| "?".into());
+            println!("Rdrop daemon started. Node ID: {node_id}");
             return Ok(());
         }
     }
 
-    anyhow::bail!("daemon did not become reachable within 3s — check logs")
+    anyhow::bail!("Rdrop daemon did not become reachable within 3s — check logs")
 }
 
 pub async fn run_stop(data_dir: &Path) -> Result<()> {
     let client = super::daemon_client(data_dir)?;
 
     if !client.is_running().await {
-        println!("Daemon is not running.");
+        println!("Rdrop daemon is not running.");
         return Ok(());
     }
 
@@ -72,25 +81,25 @@ pub async fn run_stop(data_dir: &Path) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(100)).await;
         if !client.is_running().await {
             pid::remove(data_dir);
-            println!("Daemon stopped.");
+            println!("Rdrop daemon stopped.");
             return Ok(());
         }
     }
 
-    anyhow::bail!("daemon did not stop within 3s")
+    anyhow::bail!("Rdrop daemon did not stop within 3s")
 }
 
 pub async fn run_status(data_dir: &Path) -> Result<()> {
     let client = super::daemon_client(data_dir)?;
 
     if !client.is_running().await {
-        println!("Daemon is not running. Start it with: rdrop daemon start");
+        println!("Rdrop daemon is not running. Start it with: rdrop daemon start");
         return Ok(());
     }
 
-    match query_node_id(&client).await {
-        Ok(id) => println!("Daemon running. Node ID: {id}"),
-        Err(e) => println!("Daemon running but failed to get node ID: {e}"),
+    match query_node_info(&client).await {
+        Ok(id) => println!("Rdrop daemon running. Node ID: {id}"),
+        Err(e) => println!("Rdrop daemon running but failed to get node info: {e}"),
     }
     Ok(())
 }
@@ -110,7 +119,7 @@ pub async fn run_serve(data_dir: &Path) -> Result<()> {
     result
 }
 
-async fn query_node_id(client: &DaemonClient) -> Result<String> {
+async fn query_node_info(client: &DaemonClient) -> Result<String> {
     let mut node_id = String::new();
     let mut err: Option<String> = None;
     client

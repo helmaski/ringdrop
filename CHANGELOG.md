@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-05-15
+
+### Bug Fixes
+
+- (**daemon**) Harden server edge cases
+- (**daemon**) Bound IPC line length to 512 KiB
+- (**daemon**) Move --data-dir before subcommand in spawned daemon args
+
+### Documentation
+
+- Update install section with platform-specific instructions
+- Update README with daemon lifecycle
+
+### Features
+
+- (**install**) Add install scripts and INSTALL.md for Linux, macOS, and Windows
+- (**config**) Add daemon_port field with default 60001
+- (**core**) Add Node::import_path helper, clarify make_ticket comment
+- (**daemon**) Add IPC protocol types and module skeleton
+- (**daemon**) Add PID file helpers
+- (**daemon**) Add TCP client
+- (**daemon**) Add TCP server with concurrent connection handling
+- (**cli**) Add daemon subcommand
+- (**daemon**) Add background daemon with TCP-based IPC
+
+### Refactoring
+
+- (**cli**) Replace standalone-node commands with daemon-client proxies
+- (**daemon**) Enforce req_id as mandatory field on both Request and Event
+- (**daemon**) Split server.rs into server/ with per-domain handler modules
+- (**cli**) Clarify daemon start command
+
 ## [0.5.1] - 2026-05-12
 
 ### Documentation

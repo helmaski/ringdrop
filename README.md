@@ -21,25 +21,13 @@ Access control is enforced at the connection level via an ALPN protocol (`/iroh-
 
 ## Install
 
-**macOS:**
+| Platform | Quick command |
+|---|---|
+| Linux | `cargo install ringdrop` |
+| macOS | `brew tap rikettsie/tap && brew install rdrop` |
+| Windows (PowerShell) | `scoop bucket add rikettsie https://github.com/rikettsie/scoop-bucket; scoop install rdrop` |
 
-```sh
-brew install ringdrop
-```
-
-**Windows:**
-
-```sh
-scoop install ringdrop
-```
-
-**Linux (and from source in general):**
-
-```sh
-cargo install ringdrop
-```
-
-After installation, `rdrop` is available from anywhere in your shell. If it isn't, make sure `~/.cargo/bin` is in your `PATH`.
+For prerequisites, alternative methods, and troubleshooting see [install/INSTALL.md](install/INSTALL.md).
 
 ## Usage
 

@@ -4,10 +4,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use futures_lite::StreamExt;
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinSet;
+use tokio_util::codec::{FramedRead, LinesCodec, LinesCodecError};
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -77,26 +79,37 @@ impl DaemonServer {
     }
 }
 
+use super::MAX_LINE_BYTES;
+
 async fn handle_connection(
     stream: TcpStream,
     node: Arc<Node<RedbRegistry>>,
     shutdown: Arc<Notify>,
 ) -> Result<()> {
     let (reader, mut writer) = stream.into_split();
-    let mut reader = BufReader::new(reader);
-    let mut line = String::new();
+    let mut framed = FramedRead::new(reader, LinesCodec::new_with_max_length(MAX_LINE_BYTES));
 
-    if reader.read_line(&mut line).await? == 0 {
-        return Ok(());
-    }
+    let line = match framed.next().await {
+        None => return Ok(()),
+        Some(Err(LinesCodecError::MaxLineLengthExceeded)) => {
+            emit(
+                &mut writer,
+                &Event::error(Uuid::nil(), "request exceeds maximum line length"),
+            )
+            .await;
+            return Ok(());
+        }
+        Some(Err(e)) => return Err(e.into()),
+        Some(Ok(l)) => l,
+    };
 
-    let req: Request = match serde_json::from_str(line.trim()) {
+    let req: Request = match serde_json::from_str(&line) {
         Ok(r) => r,
         Err(e) => {
             // Best-effort: recover req_id from the raw JSON so the client can
             // correlate the error. Falls back to Uuid::nil() (all zeros) when
             // the payload is not even valid JSON or carries no req_id field.
-            let req_id = serde_json::from_str::<serde_json::Value>(line.trim())
+            let req_id = serde_json::from_str::<serde_json::Value>(&line)
                 .ok()
                 .and_then(|v| v.get("req_id")?.as_str()?.parse::<Uuid>().ok())
                 .unwrap_or_else(Uuid::nil);

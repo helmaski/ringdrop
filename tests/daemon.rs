@@ -168,6 +168,23 @@ async fn parse_failure_with_invalid_json_uses_nil_uuid() {
 }
 
 #[tokio::test]
+async fn oversized_request_is_rejected_with_error() {
+    let daemon = common::TestDaemon::start().await;
+    let oversized = "x".repeat(512 * 1024 + 1);
+    let event = send_raw(daemon.port, &oversized).await;
+    assert_eq!(
+        event.req_id.to_string(),
+        "00000000-0000-0000-0000-000000000000",
+        "oversized request should return nil UUID"
+    );
+    assert!(
+        matches!(event.kind, EventKind::Error { .. }),
+        "expected Error event for oversized request"
+    );
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
 async fn shutdown_stops_the_server() {
     let common::TestDaemon {
         port,

@@ -1,11 +1,14 @@
 use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use futures_lite::StreamExt;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use tokio_util::codec::{FramedRead, LinesCodec};
 use uuid::Uuid;
 
 use super::protocol::{Event, EventKind, Op, Request};
+use super::MAX_LINE_BYTES;
 
 pub struct DaemonClient {
     addr: SocketAddr,
@@ -46,15 +49,17 @@ impl DaemonClient {
         let json_req = serde_json::to_string(&req)?;
         writer.write_all(format!("{json_req}\n").as_bytes()).await?;
 
-        let mut reader = BufReader::new(reader);
-        let mut buf = String::new();
+        let mut framed = FramedRead::new(reader, LinesCodec::new_with_max_length(MAX_LINE_BYTES));
         loop {
-            buf.clear();
-            if reader.read_line(&mut buf).await? == 0 {
-                anyhow::bail!("daemon closed connection before sending Done or Error");
-            }
-            let event: Event = serde_json::from_str(buf.trim())
-                .with_context(|| format!("malformed event from daemon: {}", buf.trim()))?;
+            let line = framed
+                .next()
+                .await
+                .ok_or_else(|| {
+                    anyhow::anyhow!("daemon closed connection before sending Done or Error")
+                })?
+                .context("framing error reading from daemon")?;
+            let event: Event = serde_json::from_str(&line)
+                .with_context(|| format!("malformed event from daemon: {line}"))?;
             let is_eos = matches!(event.kind, EventKind::Done | EventKind::Error { .. });
             on_event(event);
             if is_eos {

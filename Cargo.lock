@@ -3222,6 +3222,7 @@ dependencies = [
  "serde_millis",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "uuid",

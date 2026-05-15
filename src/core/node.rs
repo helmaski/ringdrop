@@ -206,9 +206,10 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
 
     pub fn make_ticket(&self, hash: Hash, format: BlobFormat, name: Option<String>) -> ShareTicket {
         let full_addr = self.node_addr();
-        // Strip stale direct IP addresses — import and share are separate node instances
-        // (different random ports), so direct addrs are always stale by the time the
-        // receiver connects. Relay URL + node ID are always valid.
+        // Omit direct IP addresses: tickets are long-lived and may be used after the
+        // daemon has restarted (new random port, possibly different IP). The relay URL
+        // + node ID are always valid; iroh still negotiates a direct connection via
+        // hole-punching during the relay handshake when both peers are on the same LAN.
         let addr = full_addr
             .relay_urls()
             .fold(EndpointAddr::new(full_addr.id), |a, url| {
@@ -217,6 +218,14 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
         match format {
             BlobFormat::HashSeq => ShareTicket::new_collection(addr, hash, name),
             _ => ShareTicket::new(addr, hash, name),
+        }
+    }
+
+    pub async fn import_path(&self, path: &std::path::Path) -> Result<(Hash, BlobFormat)> {
+        if path.is_dir() {
+            self.import_directory(path).await
+        } else {
+            self.import_file(path).await
         }
     }
 

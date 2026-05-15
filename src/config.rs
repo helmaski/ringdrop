@@ -7,9 +7,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub secret_key: SecretKey,
+    #[serde(default = "Config::default_daemon_port")]
+    pub daemon_port: u16,
 }
 
 impl Config {
+    fn default_daemon_port() -> u16 {
+        60001
+    }
+
     pub fn public_id(&self) -> EndpointId {
         self.secret_key.public()
     }
@@ -23,6 +29,7 @@ impl Config {
         } else {
             let cfg = Config {
                 secret_key: SecretKey::generate(),
+                daemon_port: Self::default_daemon_port(),
             };
             let raw = serde_json::to_string_pretty(&cfg)?;
             std::fs::write(&path, raw).with_context(|| format!("writing {}", path.display()))?;
@@ -54,6 +61,16 @@ mod tests {
         let first = Config::load_or_create(dir.path()).unwrap();
         let second = Config::load_or_create(dir.path()).unwrap();
         assert_eq!(first.secret_key.to_bytes(), second.secret_key.to_bytes());
+    }
+
+    #[test]
+    fn daemon_port_defaults_when_field_absent_in_existing_config() {
+        let dir = tmpdir();
+        let key = iroh::SecretKey::generate();
+        let legacy = serde_json::json!({ "secret_key": key });
+        std::fs::write(dir.path().join("config.json"), legacy.to_string()).unwrap();
+        let cfg = Config::load_or_create(dir.path()).unwrap();
+        assert_eq!(cfg.daemon_port, 60001);
     }
 
     #[test]

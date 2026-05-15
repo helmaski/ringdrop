@@ -1,17 +1,21 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{ArgGroup, Subcommand};
-use iroh_blobs::{BlobFormat, Hash};
 
-use crate::core::Node;
-use iroh_rings::RedbRegistry;
+use crate::config::Config;
+use crate::daemon::client::DaemonClient;
+
+pub(crate) fn daemon_client(data_dir: &Path) -> Result<DaemonClient> {
+    let port = Config::load_or_create(data_dir)?.daemon_port;
+    Ok(DaemonClient::new(port))
+}
 
 pub mod blob;
+pub mod daemon;
 pub mod id;
 pub mod receive;
 pub mod ring;
-pub mod share;
 pub mod tag;
 
 #[derive(Subcommand)]
@@ -38,8 +42,9 @@ pub enum Cmd {
         open: bool,
     },
 
-    /// Start the node and share all authorised blobs until Ctrl-C
-    Share,
+    /// Manage the background daemon (serves all authorised blobs)
+    #[command(subcommand)]
+    Daemon(DaemonCmd),
 
     /// Download a file from a ringdrop ticket (automatically resumes if interrupted)
     Receive {
@@ -78,6 +83,19 @@ pub enum Cmd {
 
     /// Print your peer-id (i.e. this node public-id) so others can add you to their rings
     Id,
+}
+
+#[derive(Subcommand)]
+pub enum DaemonCmd {
+    /// Start the daemon in the background
+    Start,
+    /// Stop a running daemon
+    Stop,
+    /// Show daemon status and node ID
+    Status,
+    /// Run the daemon in the foreground (used internally by `start`)
+    #[command(hide = true)]
+    Run,
 }
 
 #[derive(Subcommand)]
@@ -137,15 +155,4 @@ pub enum RingCmd {
 
     /// List members of a ring
     Members { ring: String },
-}
-
-async fn import_path(
-    node: &Node<RedbRegistry>,
-    path: &std::path::Path,
-) -> Result<(Hash, BlobFormat)> {
-    if path.is_dir() {
-        node.import_directory(path).await
-    } else {
-        node.import_file(path).await
-    }
 }

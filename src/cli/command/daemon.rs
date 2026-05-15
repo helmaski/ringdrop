@@ -25,7 +25,7 @@ pub async fn run_start(data_dir: &Path) -> Result<()> {
         .context("data_dir path is not valid UTF-8")?;
 
     let mut cmd = std::process::Command::new(&exe);
-    cmd.args(["daemon", "run", "--data-dir", data_dir_str])
+    cmd.args(["--data-dir", data_dir_str, "daemon", "run"])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());

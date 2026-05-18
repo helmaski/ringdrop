@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-05-18
+
+### Documentation
+
+- Update documentation
+- Update README with new protocol version
+
+### Refactoring
+
+- Support new /iroh-rings/1 protocol version
+- (**daemon**) Remove pid file lifecycle support - IPC rules over
+- Support new /iroh-rings/1 protocol version
+
 ## [0.6.0] - 2026-05-15
 
 ### Bug Fixes

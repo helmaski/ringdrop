@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2026-05-18
+
+### Documentation
+
+- (**lib**) Add a better global schema in lib.rs
+
 ## [0.7.0] - 2026-05-18
 
 ### Documentation

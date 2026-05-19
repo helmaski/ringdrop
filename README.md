@@ -124,6 +124,8 @@ This applies to every command, not just the daemon.
 
 ## Contributing
 
+If you have ideas/contributions or anything is not working the way you expect (in which case, please include an output with `RUST_LOG=debug`) and feel free to open an issue or PR.
+
 After cloning, activate the pre-commit hooks (it runs `cargo fmt --check` and `cargo clippy` before every commit, and tag verifications before every push):
 
 ```sh

@@ -3,7 +3,6 @@ mod common;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
-use ringdrop::daemon::client::DaemonClient;
 use ringdrop::daemon::protocol::{Event, EventKind, Op};
 
 /// Connect to the daemon, send a raw JSON line, and return the first event.
@@ -21,65 +20,8 @@ async fn send_raw(port: u16, json: &str) -> Event {
 }
 
 #[tokio::test]
-async fn node_id_returns_a_non_empty_string() {
-    let daemon = common::TestDaemon::start().await;
-    let mut lines: Vec<String> = Vec::new();
-    daemon
-        .client
-        .send(Op::NodeId, |event| {
-            if let EventKind::Line { text } = event.kind {
-                lines.push(text);
-            }
-        })
-        .await
-        .unwrap();
-    assert_eq!(lines.len(), 1, "expected exactly one line for NodeId");
-    assert!(!lines[0].is_empty(), "node ID must not be empty");
-    daemon.shutdown().await;
-}
-
-#[tokio::test]
-async fn ring_new_creates_ring_visible_in_list() {
-    let daemon = common::TestDaemon::start().await;
-    daemon
-        .client
-        .run(Op::RingNew {
-            name: "friends".into(),
-        })
-        .await
-        .unwrap();
-    let mut lines: Vec<String> = Vec::new();
-    daemon
-        .client
-        .send(Op::RingList, |event| {
-            if let EventKind::Line { text } = event.kind {
-                lines.push(text);
-            }
-        })
-        .await
-        .unwrap();
-    assert!(
-        lines.iter().any(|l| l.contains("friends")),
-        "ring list should include the newly created ring; got: {lines:?}"
-    );
-    daemon.shutdown().await;
-}
-
-#[tokio::test]
-async fn blob_list_on_empty_store_prints_expected_message() {
-    let daemon = common::TestDaemon::start().await;
-    let mut lines: Vec<String> = Vec::new();
-    daemon
-        .client
-        .send(Op::BlobList, |event| {
-            if let EventKind::Line { text } = event.kind {
-                lines.push(text);
-            }
-        })
-        .await
-        .unwrap();
-    assert_eq!(lines, vec!["No blobs in local store."]);
-    daemon.shutdown().await;
+async fn daemon_contract_holds_with_redb() {
+    common::daemon_contract(common::TestDaemon::start().await).await;
 }
 
 #[tokio::test]
@@ -182,20 +124,4 @@ async fn oversized_request_is_rejected_with_error() {
         "expected Error event for oversized request"
     );
     daemon.shutdown().await;
-}
-
-#[tokio::test]
-async fn shutdown_stops_the_server() {
-    let common::TestDaemon {
-        port,
-        client,
-        handle,
-        ..
-    } = common::TestDaemon::start().await;
-    client.run(Op::Shutdown).await.unwrap();
-    handle.await.unwrap();
-    assert!(
-        !DaemonClient::new(port).is_running().await,
-        "server should no longer be reachable after shutdown"
-    );
 }

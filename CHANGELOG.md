@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-05-20
+
+### Documentation
+
+- (**architecture**) Make a more precise schema
+
 ## [0.7.1] - 2026-05-18
 
 ### Documentation

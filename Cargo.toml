@@ -3,7 +3,7 @@ resolver = "2"
 
 [package]
 name = "ringdrop"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2021"
 authors = ["Enrico Fusto"]
 license = "MIT"
@@ -23,7 +23,7 @@ name = "rdrop"
 path = "src/main.rs"
 
 [dependencies]
-iroh-rings = { version = "0.2.0", features = ["redb", "fs"] }
+iroh-rings = { version = "0.3.0", features = ["redb", "fs", "mem"] }
 
 # Core components: transport protocol, chunking, concurrency
 iroh = "0.98.2"

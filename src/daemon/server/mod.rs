@@ -229,8 +229,8 @@ async fn handle_op<R: Registry + Clone + Send + Sync + 'static>(
         Op::Import { path, rings, open } => {
             handlers::blob::handle_import(req_id, node, tx, path, rings, open).await?;
         }
-        Op::BlobList => {
-            handlers::blob::handle_blob_list(req_id, node, tx).await?;
+        Op::BlobList { peer, rings } => {
+            handlers::blob::handle_blob_list(req_id, node, tx, peer, rings).await?;
         }
         Op::BlobRemove { target } => {
             handlers::blob::handle_blob_remove(req_id, node, tx, target).await?;

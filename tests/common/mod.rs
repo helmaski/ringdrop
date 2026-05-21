@@ -116,11 +116,17 @@ pub async fn daemon_contract(daemon: TestDaemon) {
     let mut lines: Vec<String> = Vec::new();
     daemon
         .client
-        .send(Op::BlobList, |event| {
-            if let EventKind::Line { text } = event.kind {
-                lines.push(text);
-            }
-        })
+        .send(
+            Op::BlobList {
+                peer: None,
+                rings: None,
+            },
+            |event| {
+                if let EventKind::Line { text } = event.kind {
+                    lines.push(text);
+                }
+            },
+        )
         .await
         .unwrap();
     assert_eq!(lines, vec!["No blobs in local store."]);

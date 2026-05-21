@@ -11,7 +11,7 @@ async fn import_file_preserves_filename_in_tag() {
 
     let (hash, _format) = node.node.import_file(&file).await.unwrap();
 
-    let blobs = node.node.list_blobs().await.unwrap();
+    let blobs = node.node.list_blobs(None, None).await.unwrap();
     let (_, _, name) = blobs.into_iter().find(|(h, _, _)| *h == hash).unwrap();
     assert_eq!(name, "report.pdf");
 
@@ -29,7 +29,7 @@ async fn import_directory_preserves_dir_name_in_tag() {
 
     let (hash, _format) = node.node.import_directory(&named_dir).await.unwrap();
 
-    let blobs = node.node.list_blobs().await.unwrap();
+    let blobs = node.node.list_blobs(None, None).await.unwrap();
     let (_, _, name) = blobs.into_iter().find(|(h, _, _)| *h == hash).unwrap();
     assert_eq!(name, "my_dataset");
 
@@ -43,10 +43,10 @@ async fn delete_blob_removes_filename_tagged_entry() {
     let file = common::write_file(src.path(), "to_delete.bin", b"delete me").await;
 
     let (hash, _format) = node.node.import_file(&file).await.unwrap();
-    assert_eq!(node.node.list_blobs().await.unwrap().len(), 1);
+    assert_eq!(node.node.list_blobs(None, None).await.unwrap().len(), 1);
 
     node.node.delete_blob(hash).await.unwrap();
-    assert!(node.node.list_blobs().await.unwrap().is_empty());
+    assert!(node.node.list_blobs(None, None).await.unwrap().is_empty());
 
     node.shutdown().await;
 }
@@ -61,7 +61,7 @@ async fn list_blobs_ticket_carries_original_filename() {
 
     let (_, fmt, name) = node
         .node
-        .list_blobs()
+        .list_blobs(None, None)
         .await
         .unwrap()
         .into_iter()

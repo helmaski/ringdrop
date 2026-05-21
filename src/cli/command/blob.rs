@@ -22,6 +22,13 @@ pub(crate) async fn run(cmd: BlobCmd, data_dir: &Path) -> Result<()> {
     match cmd {
         BlobCmd::Import { path, rings, open } => client.run(Op::Import { path, rings, open }).await,
         BlobCmd::Remove { target } => client.run(Op::BlobRemove { target }).await,
-        BlobCmd::List => client.run(Op::BlobList).await,
+        BlobCmd::List => {
+            client
+                .run(Op::BlobList {
+                    peer: None,
+                    rings: None,
+                })
+                .await
+        }
     }
 }

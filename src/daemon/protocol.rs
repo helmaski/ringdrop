@@ -43,7 +43,12 @@ pub enum Op {
         open: bool,
     },
     /// List all blobs in the local store.
-    BlobList,
+    BlobList {
+        /// Optional filter by this peer-id.
+        peer: Option<String>,
+        /// Optional filter by a ring name.
+        rings: Option<Vec<String>>,
+    },
     /// Remove a blob from the local store. `target` is a filename or hex hash.
     BlobRemove {
         /// File path or BLAKE3 hex hash identifying the blob to remove.
@@ -200,8 +205,12 @@ mod tests {
     #[test]
     fn op_blob_list_serializes_correctly() {
         assert_eq!(
-            serde_json::to_string(&Op::BlobList).unwrap(),
-            r#"{"op":"blob_list"}"#
+            serde_json::to_string(&Op::BlobList {
+                peer: None,
+                rings: None,
+            })
+            .unwrap(),
+            r#"{"op":"blob_list","peer":null,"rings":null}"#
         );
     }
 
@@ -214,18 +223,21 @@ mod tests {
         assert_eq!(json, r#"{"op":"ring_new","name":"friends"}"#);
     }
 
-    // ── Request: req_id is mandatory ─────────────────────────────────────────
+    // Request: req_id is mandatory
 
     #[test]
     fn request_serializes_req_id() {
         let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let req = Request {
             req_id: id,
-            op: Op::BlobList,
+            op: Op::BlobList {
+                peer: None,
+                rings: None,
+            },
         };
         assert_eq!(
             serde_json::to_string(&req).unwrap(),
-            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","op":"blob_list"}"#
+            r#"{"req_id":"550e8400-e29b-41d4-a716-446655440000","op":"blob_list","peer":null,"rings":null}"#
         );
     }
 
@@ -248,7 +260,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ── Event: req_id is mandatory ────────────────────────────────────────────
+    // Event: req_id is mandatory
 
     #[test]
     fn event_done_serializes_req_id_and_type() {
@@ -292,7 +304,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ── Round-trips ───────────────────────────────────────────────────────────
+    // Round-trips
 
     #[test]
     fn request_round_trips_through_json() {

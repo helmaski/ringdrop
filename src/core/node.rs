@@ -7,6 +7,7 @@
 //!  - a `Registry`              — ring membership and file tagging
 
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -29,6 +30,9 @@ use super::ticket::ShareTicket;
 use crate::config::Config;
 use iroh_rings::FsTransfer;
 use iroh_rings::Registry;
+use iroh_rings::OPEN_RING_NAME;
+
+use crate::util::parse_peer_id;
 
 /// A ringdrop P2P node.
 ///
@@ -47,6 +51,35 @@ pub struct Node<R> {
     /// The ring registry — tracks ring membership and per-blob access tags.
     pub registry: R,
     router: Router,
+}
+
+/// Returns the set of ring names accessible to `peer`: all rings the peer
+/// belongs to, plus the built-in open ring (which is accessible to everyone).
+///
+/// # Errors
+///
+/// Returns an error if `peer` is not a valid [`EndpointId`] encoding or if a
+/// registry lookup fails.
+///
+/// [`EndpointId`]: iroh::EndpointId
+fn peer_ring_set<R: Registry>(registry: &R, peer: &str) -> Result<HashSet<String>> {
+    let peer_id = parse_peer_id(peer)?;
+    let mut set: HashSet<String> = registry
+        .list_rings()?
+        .into_iter()
+        .filter(|r| !r.is_open())
+        .filter(|r| {
+            registry
+                .list_ring_peers(r.as_str())
+                .unwrap_or_default()
+                .iter()
+                .any(|(id, _)| *id == peer_id)
+        })
+        .map(|r| r.as_str().to_owned())
+        .collect();
+    // open ring is accessible to every peer
+    set.insert(OPEN_RING_NAME.to_owned());
+    Ok(set)
 }
 
 impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
@@ -207,12 +240,25 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
         Ok((hash, format))
     }
 
-    /// List all blobs in the local store as `(hash, format, tag_name)` triples.
+    /// List blobs in the local store as `(hash, format, tag_name)` triples.
+    ///
+    /// When `peer` is supplied only blobs accessible to that peer are returned
+    /// (i.e. the blob is tagged with at least one ring the peer belongs to).
+    /// When `rings` is supplied only blobs tagged with at least one of those
+    /// ring names are returned (OR semantics).  When both are given the
+    /// filters are combined: a blob must satisfy both independently.
     ///
     /// # Errors
     ///
-    /// Returns an error if the tag store cannot be read.
-    pub async fn list_blobs(&self) -> Result<Vec<(Hash, BlobFormat, String)>> {
+    /// Returns an error if the tag store cannot be read, if `peer` is not a
+    /// valid [`EndpointId`] encoding, or if a registry lookup fails.
+    ///
+    /// [`EndpointId`]: iroh::EndpointId
+    pub async fn list_blobs(
+        &self,
+        peer: Option<String>,
+        rings: Option<Vec<String>>,
+    ) -> Result<Vec<(Hash, BlobFormat, String)>> {
         let mut stream = self.store.tags().list().await?;
         let mut blobs = Vec::new();
         while let Some(item) = stream.next().await {
@@ -220,6 +266,32 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             let name = String::from_utf8_lossy(&info.name.0).into_owned();
             blobs.push((info.hash, info.format, name));
         }
+
+        let peer_rings: Option<HashSet<String>> = peer
+            .as_deref()
+            .map(|s| peer_ring_set(&self.registry, s))
+            .transpose()?;
+        let ring_names: Option<HashSet<String>> = rings.map(|rs| rs.into_iter().collect());
+
+        if peer_rings.is_some() || ring_names.is_some() {
+            let mut filtered = Vec::with_capacity(blobs.len());
+            for (hash, format, name) in blobs {
+                let blob_rings = self.registry.list_resource_rings(*hash.as_bytes())?;
+                if let Some(ref rset) = ring_names {
+                    if !blob_rings.iter().any(|r| rset.contains(r.as_str())) {
+                        continue;
+                    }
+                }
+                if let Some(ref pset) = peer_rings {
+                    if !blob_rings.iter().any(|r| pset.contains(r.as_str())) {
+                        continue;
+                    }
+                }
+                filtered.push((hash, format, name));
+            }
+            blobs = filtered;
+        }
+
         Ok(blobs)
     }
 
@@ -389,5 +461,52 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             .await
             .context("flushing blob store to disk")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iroh::SecretKey;
+    use iroh_rings::{InMemoryRegistry, OPEN_RING_NAME};
+
+    use super::*;
+
+    fn make_registry() -> InMemoryRegistry {
+        InMemoryRegistry::default()
+    }
+
+    fn make_peer_str() -> (iroh::EndpointId, String) {
+        let id = SecretKey::generate().public();
+        let s = id.to_string();
+        (id, s)
+    }
+
+    #[test]
+    fn peer_ring_set_includes_explicit_rings_and_open() {
+        let reg = make_registry();
+        reg.create_ring("friends").unwrap();
+        reg.create_ring("work").unwrap();
+        let (peer_id, peer_str) = make_peer_str();
+        reg.add_peer_to_ring("friends", peer_id, None).unwrap();
+
+        let set = peer_ring_set(&reg, &peer_str).unwrap();
+        assert!(set.contains("friends"));
+        assert!(set.contains(OPEN_RING_NAME));
+        assert!(!set.contains("work"));
+    }
+
+    #[test]
+    fn peer_ring_set_always_includes_open_even_with_no_memberships() {
+        let reg = make_registry();
+        let (_, peer_str) = make_peer_str();
+
+        let set = peer_ring_set(&reg, &peer_str).unwrap();
+        assert_eq!(set, std::iter::once(OPEN_RING_NAME.to_owned()).collect());
+    }
+
+    #[test]
+    fn peer_ring_set_rejects_invalid_peer_string() {
+        let reg = make_registry();
+        assert!(peer_ring_set(&reg, "not-a-valid-peer-id").is_err());
     }
 }

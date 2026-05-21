@@ -93,10 +93,21 @@ pub(crate) async fn handle_blob_list<R: Registry + Clone + Send + Sync + 'static
     req_id: Uuid,
     node: &Node<R>,
     tx: &mpsc::Sender<Event>,
+    peer: Option<String>,
+    rings: Option<Vec<String>>,
 ) -> Result<()> {
-    let blobs = node.list_blobs().await?;
+    let blobs = node.list_blobs(peer.clone(), rings).await?;
     if blobs.is_empty() {
-        send(tx, Event::line(req_id, "No blobs in local store.")).await;
+        let peer_str = if let Some(peer) = peer {
+            format!(" accessible by peer {}", peer)
+        } else {
+            String::from("")
+        };
+        send(
+            tx,
+            Event::line(req_id, format!("No blobs in local store{}.", peer_str)),
+        )
+        .await;
     } else {
         send(tx, Event::line(req_id, format!("{} blobs:", blobs.len()))).await;
         for (hash, format, name) in blobs {

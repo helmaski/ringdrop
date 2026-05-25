@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-05-25
+
+### Bug Fixes
+
+- (**CLI**) Expose blob list --peer and --ring options
+- (**node**) Show the full reason of a connection error
+
+### Documentation
+
+- Add new commands in README.md
+
+### Features
+
+- (**CLI**) Add blob list filtering by peer and by ring
+- (**grants**) Add GrantStore backed by redb
+- (**catalog**) Restructure protocol module and add CatalogHandler
+- (**node**) Integrate GrantStore and CatalogHandler
+- (**core**) Add grant and remote commands + daemon protocol ops
+
+### Refactoring
+
+- (**protocol**) Support iroh-rings v2 permission semantics
+- Improve code readability
+
 ## [0.8.0] - 2026-05-20
 
 ### Documentation

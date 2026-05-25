@@ -10,38 +10,41 @@
 //! ## Architecture
 //!
 //! ```text
-//!         ┌─────────────────────┐
-//!         │     CLI (rdrop)     │
-//!         │          ↕          │
-//!         │    DaemonClient     │
-//!         └──────────┼──────────┘
-//! ┌──────────────────↕────────────────────┐
-//! │            DaemonServer               │
-//! │           (owns the Node)             │
-//! │  ┌───────────────┴─────────────────┐  │            
-//! │  │            Node<R>              │  │
-//! │  │  ┌────────────┴──────────────┐  │  │
-//! │  │  │                           │  │  │
-//! │  │  │  FsStore    Registry (R)  │  │  │
-//! │  │  │    └───────┬──────┘       │  │  │
-//! │  │  │            ↕              │  │  │
-//! │  │  │         RingGate          │  │  │
-//! │  │  │   (ALPN /iroh-rings/2)    │  │  │
-//! │  │  │            ↕              │  │  │
-//! │  │  │        Endpoint           │  │  │
-//! │  │  │       (QUIC/iroh)         │  │  │
-//! │  │  └───────────┼┼┼─────────────┘  │  │
-//! │  └──────────────│││────────────────┘  │
-//! └─────────────────│││───────────────────┘
-//!                   │││
-//!                 internet
+//!             ┌─────────────────────┐
+//!             │     CLI (rdrop)     │
+//!             │          ↕          │
+//!             │    DaemonClient     │
+//!             └──────────┼──────────┘
+//! ┌──────────────────────↕───────────────────────┐
+//! │                 DaemonServer                 │
+//! │               (owns the Node)                │
+//! │  ┌───────────────────┴────────────────────┐  │
+//! │  │                Node<R>                 │  │
+//! │  │  ┌──────────────────────────────────┐  │  │
+//! │  │  │ FsStore   Registry (R)   Grants  │  │  │
+//! │  │  │    └───────────┬──────────┘      │  │  │
+//! │  │  │  ┌─────────────┴─────────────┐   │  │  │
+//! │  │  │  │        RingGate           │   │  │  │
+//! │  │  │  │    (/iroh-rings/2)        │   │  │  │
+//! │  │  │  ├───────────────────────────┤   │  │  │
+//! │  │  │  │     CatalogHandler        │   │  │  │
+//! │  │  │  │  (/ringdrop/catalog/0)    │   │  │  │
+//! │  │  │  └─────────────┬─────────────┘   │  │  │
+//! │  │  │            Endpoint              │  │  │
+//! │  │  │           (QUIC/iroh)            │  │  │
+//! │  │  └───────────────┼┼┼────────────────┘  │  │
+//! │  └──────────────────┼┼┼───────────────────┘  │
+//! └─────────────────────┼┼┼──────────────────────┘
+//!                    internet
 //! ```
 //!
 //! A [`core::Node`] wraps an iroh QUIC endpoint, an iroh-blobs persistent blob
 //! store, a `Registry` that tracks ring membership and permission-typed
-//! resource associations, and a `RingGate` that enforces access control: a
-//! blob is only served to a peer that holds [`Permission::Read`] on it — either
-//! through ring membership or the built-in open ring.
+//! resource associations, and two protocol handlers registered on the endpoint:
+//! a `RingGate` (`/iroh-rings/2`) that enforces access control — a blob is only
+//! served to a peer that holds [`Permission::Read`] on it — and a
+//! `CatalogHandler` (`/ringdrop/catalog/0`) that lets authorised peers query
+//! the local blob list.
 //!
 //! [`Permission::Read`]: iroh_rings::Permission
 //!

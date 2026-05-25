@@ -12,7 +12,7 @@ To share a file, associate it with one or more rings and get back an `rdrop://` 
 Only peers who are members of those rings can download it.
 Transfers resume automatically if interrupted — no verified data is re-transferred after a crash or disconnect.
 
-Access control is enforced at the connection level via an ALPN protocol (`/iroh-rings/2`). Ring–resource associations carry typed permissions (`Read`, `Write`, `Delete`). When a peer requests to download a blob, the sender checks that the peer holds `Read` permission on it — either through ring membership or the built-in open ring — and denies the transfer before any data is sent if not.
+Access control is enforced at the connection level. Ring–resource associations carry typed permissions (`Read`, `Write`, `Delete`). When a peer requests to download a blob, the sender checks that the peer holds `Read` permission on it — either through ring membership or the built-in open ring — and denies the transfer before any data is sent if not.
 
 ## Features
 
@@ -153,6 +153,13 @@ After cloning, activate the pre-commit hooks (it runs `cargo fmt --check` and `c
 ```sh
 git config core.hooksPath .githooks
 ```
+
+## Wire protocols
+
+| ALPN | Purpose |
+|---|---|
+| `/iroh-rings/2` | Blob transfer — gate enforces ring membership and `Read` permission before any data is transferred |
+| `/ringdrop/catalog/0` | Catalog queries — lets a peer list the blobs accessible to them on a remote node (requires `blob-list` grant) |
 
 ## Dependencies
 

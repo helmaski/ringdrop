@@ -39,8 +39,7 @@ use iroh::{
 use iroh_blobs::{store::fs::FsStore, BlobFormat, Hash};
 use iroh_rings::{Permission, Registry};
 
-use crate::core::grants::{GrantStore, Privilege};
-use crate::core::ShareTicket;
+use crate::core::{GrantStore, Privilege, ShareTicket};
 
 /// ALPN for the catalog protocol.
 pub(crate) const CATALOG_ALPN: &[u8] = b"/ringdrop/catalog/0";

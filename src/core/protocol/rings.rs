@@ -19,7 +19,9 @@ use iroh_blobs::{
 };
 use tracing::info;
 
-use super::{encode_ranges_wire, encode_request, Permission, Status};
+use iroh_rings::Permission;
+
+use super::{encode_ranges_wire, encode_request, Status};
 
 // export_bao emits an 8-byte little-endian content size before the bao tree,
 // so the receiver knows the total before any leaf data arrives.

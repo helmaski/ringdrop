@@ -29,7 +29,7 @@ use super::grants::GrantStore;
 use super::protocol::catalog::{
     decode_entries, CatalogEntry, CatalogHandler, ALLOWED, BLOB_LIST, CATALOG_ALPN,
 };
-use super::protocol::{RingGate, RingReceiver, ALPN};
+use super::protocol::{RingGate, RingReceiver};
 use super::ticket::ShareTicket;
 use crate::config::Config;
 use iroh_rings::{FsTransfer, Permission, Registry, OPEN_RING_NAME};
@@ -138,7 +138,7 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
         );
 
         let router = Router::builder(endpoint.clone())
-            .accept(ALPN, gate)
+            .accept(iroh_rings::ALPN, gate)
             .accept(CATALOG_ALPN, catalog)
             .spawn();
 
@@ -470,7 +470,7 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
 
         let conn = self
             .endpoint
-            .connect(ticket.node_addr().clone(), ALPN)
+            .connect(ticket.node_addr().clone(), iroh_rings::ALPN)
             .await
             .context("connecting to sender")?;
 

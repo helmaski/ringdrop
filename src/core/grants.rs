@@ -144,11 +144,7 @@ impl GrantStore {
     pub fn has_grant(&self, privilege: Privilege, peer: &EndpointId) -> Result<bool> {
         let key = grant_key(privilege, peer);
         let read = self.db.begin_read().context("beginning grant read")?;
-        let table: redb::ReadOnlyTable<&[u8], ()> = match read.open_table(GRANTS) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(false),
-            Err(e) => return Err(e).context("opening grants table"),
-        };
+        let table = read.open_table(GRANTS).context("opening grants table")?;
         Ok(table
             .get(key.as_slice())
             .context("querying grant")?
@@ -162,11 +158,7 @@ impl GrantStore {
     /// Returns an error if the database read or key decoding fails.
     pub fn list(&self) -> Result<Vec<(Privilege, EndpointId)>> {
         let read = self.db.begin_read().context("beginning grants list read")?;
-        let table: redb::ReadOnlyTable<&[u8], ()> = match read.open_table(GRANTS) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(Vec::new()),
-            Err(e) => return Err(e).context("opening grants table"),
-        };
+        let table = read.open_table(GRANTS).context("opening grants table")?;
         let mut result = Vec::new();
         for item in table.iter().context("iterating grants")? {
             let (k, _) = item.context("reading grant entry")?;

@@ -219,6 +219,11 @@ impl Event {
         }
     }
 
+    /// Construct a blank [`EventKind::Line`] event — renders as an empty line in the console.
+    pub fn blank(req_id: Uuid) -> Self {
+        Self::line(req_id, "")
+    }
+
     /// Construct a [`EventKind::Progress`] event with byte counts.
     pub fn progress(req_id: Uuid, done: u64, total: u64) -> Self {
         Self {

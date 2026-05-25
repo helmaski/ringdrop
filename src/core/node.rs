@@ -32,10 +32,7 @@ use super::protocol::catalog::{
 use super::protocol::{RingGate, RingReceiver, ALPN};
 use super::ticket::ShareTicket;
 use crate::config::Config;
-use iroh_rings::FsTransfer;
-use iroh_rings::Permission;
-use iroh_rings::Registry;
-use iroh_rings::OPEN_RING_NAME;
+use iroh_rings::{FsTransfer, Permission, Registry, OPEN_RING_NAME};
 
 use crate::util::parse_peer_id;
 
@@ -275,7 +272,7 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
     /// [`EndpointId`]: iroh::EndpointId
     pub async fn list_blobs(
         &self,
-        peer: Option<String>,
+        peer: Option<&str>,
         rings: Option<Vec<String>>,
     ) -> Result<Vec<(Hash, BlobFormat, String)>> {
         let mut stream = self.store.tags().list().await?;
@@ -286,10 +283,8 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             blobs.push((info.hash, info.format, name));
         }
 
-        let peer_rings: Option<HashSet<String>> = peer
-            .as_deref()
-            .map(|s| peer_ring_set(&self.registry, s))
-            .transpose()?;
+        let peer_rings: Option<HashSet<String>> =
+            peer.map(|s| peer_ring_set(&self.registry, s)).transpose()?;
         let ring_names: Option<HashSet<String>> = rings.map(|rs| rs.into_iter().collect());
 
         if peer_rings.is_some() || ring_names.is_some() {
@@ -354,20 +349,8 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
     /// The ticket embeds the relay URL and node ID but omits direct IP
     /// addresses — tickets remain valid across daemon restarts and IP changes.
     pub fn make_ticket(&self, hash: Hash, format: BlobFormat, name: Option<String>) -> ShareTicket {
-        let full_addr = self.node_addr();
-        // Omit direct IP addresses: tickets are long-lived and may be used after the
-        // daemon has restarted (new random port, possibly different IP). The relay URL
-        // + node ID are always valid; iroh still negotiates a direct connection via
-        // hole-punching during the relay handshake when both peers are on the same LAN.
-        let addr = full_addr
-            .relay_urls()
-            .fold(EndpointAddr::new(full_addr.id), |a, url| {
-                a.with_relay_url(url.clone())
-            });
-        match format {
-            BlobFormat::HashSeq => ShareTicket::new_collection(addr, hash, name),
-            _ => ShareTicket::new(addr, hash, name),
-        }
+        let addr = crate::util::relay_only_addr(self.node_addr());
+        ShareTicket::from_format(addr, hash, format, name)
     }
 
     /// Connect to a remote node and fetch its catalog — the list of blobs the
@@ -472,15 +455,15 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             return client.export(hash, format, &ticket.name, &dest).await;
         }
 
-        // Hold a temp tag for the duration of the download so GC doesn't unlink
+        // Hold a temporary tag for the duration of the download so GC doesn't unlink
         // the partial .data file while we're writing it (large files take > 30s).
-        let _batch = self
+        let blob_batch = self
             .store
             .blobs()
             .batch()
             .await
             .context("creating download scope")?;
-        let _tt = _batch
+        let _gc_guard = blob_batch
             .temp_tag(HashAndFormat { hash, format })
             .await
             .context("creating temp tag")?;

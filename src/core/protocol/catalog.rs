@@ -34,7 +34,7 @@ use futures_lite::StreamExt;
 use iroh::{
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
-    Endpoint, EndpointAddr, EndpointId,
+    Endpoint, EndpointId,
 };
 use iroh_blobs::{store::fs::FsStore, BlobFormat, Hash};
 use iroh_rings::{Permission, Registry};
@@ -138,7 +138,7 @@ impl<R: Registry + Clone + Send + Sync + 'static> CatalogHandler<R> {
 
         send.write_all(&[ALLOWED]).await?;
 
-        let addr = self.node_addr();
+        let addr = crate::util::relay_only_addr(self.endpoint.addr());
         let mut stream = self.store.tags().list().await?;
         while let Some(item) = stream.next().await {
             let info = item?;
@@ -150,21 +150,14 @@ impl<R: Registry + Clone + Send + Sync + 'static> CatalogHandler<R> {
                 continue;
             }
             let name = String::from_utf8_lossy(&info.name.0).into_owned();
-            let ticket = build_ticket(addr.clone(), info.hash, info.format, Some(name.clone()));
+            let ticket =
+                ShareTicket::from_format(addr.clone(), info.hash, info.format, Some(name.clone()));
             let ticket_uri = ticket.to_uri()?;
             write_entry(send, info.hash, info.format, &name, &ticket_uri).await?;
         }
 
         send.finish()?;
         Ok(())
-    }
-
-    fn node_addr(&self) -> EndpointAddr {
-        let full = self.endpoint.addr();
-        full.relay_urls()
-            .fold(EndpointAddr::new(full.id), |a, url| {
-                a.with_relay_url(url.clone())
-            })
     }
 }
 
@@ -235,18 +228,6 @@ pub(crate) async fn decode_entries(
         });
     }
     Ok(entries)
-}
-
-fn build_ticket(
-    addr: EndpointAddr,
-    hash: Hash,
-    format: BlobFormat,
-    name: Option<String>,
-) -> ShareTicket {
-    match format {
-        BlobFormat::HashSeq => ShareTicket::new_collection(addr, hash, name),
-        _ => ShareTicket::new(addr, hash, name),
-    }
 }
 
 async fn write_entry(

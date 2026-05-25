@@ -37,9 +37,10 @@ pub(crate) async fn handle_remote_blob_list<R: Registry + Clone + Send + Sync + 
         send(tx, Event::line(req_id, format!("{} blobs:", entries.len()))).await;
         for entry in entries {
             let ticket_str = entry.ticket.to_uri()?;
+            send(tx, Event::blank(req_id)).await;
             send(
                 tx,
-                Event::line(req_id, format!("\n  {}  ({})", entry.hash, entry.name)),
+                Event::line(req_id, format!("  {}  ({})", entry.hash, entry.name)),
             )
             .await;
             send(tx, Event::line(req_id, format!("    ticket: {ticket_str}"))).await;

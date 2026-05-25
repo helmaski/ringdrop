@@ -53,7 +53,7 @@ pub(crate) async fn handle_grants<R: Registry + Clone + Send + Sync + 'static>(
     peer: Option<String>,
     privilege: Option<String>,
 ) -> Result<()> {
-    let lines = grants_lines(&node.grants, peer.as_deref(), privilege.as_deref())?;
+    let lines = filtered_grant_lines(&node.grants, peer.as_deref(), privilege.as_deref())?;
     for line in lines {
         send(tx, Event::line(req_id, line)).await;
     }
@@ -75,7 +75,7 @@ fn revoke_lines(grants: &GrantStore, peer_str: &str, privilege_str: &str) -> Res
     Ok(vec![format!("Revoked {privilege_str} from {peer_id}")])
 }
 
-fn grants_lines(
+fn filtered_grant_lines(
     grants: &GrantStore,
     peer_filter: Option<&str>,
     privilege_filter: Option<&str>,
@@ -138,18 +138,18 @@ mod tests {
     }
 
     #[test]
-    fn grants_lines_on_empty_store_returns_no_grants_message() {
+    fn filtered_grant_lines_on_empty_store_returns_no_grants_message() {
         let (gs, _dir) = open_grants();
-        let lines = grants_lines(&gs, None, None).unwrap();
+        let lines = filtered_grant_lines(&gs, None, None).unwrap();
         assert_eq!(lines, vec!["No grants.".to_owned()]);
     }
 
     #[test]
-    fn grants_lines_returns_count_and_one_line_per_grant() {
+    fn filtered_grant_lines_returns_count_and_one_line_per_grant() {
         let (gs, _dir) = open_grants();
         let (id, _) = peer_str();
         gs.grant(Privilege::BlobList, id).unwrap();
-        let lines = grants_lines(&gs, None, None).unwrap();
+        let lines = filtered_grant_lines(&gs, None, None).unwrap();
         assert_eq!(lines.len(), 2, "header + one entry");
         assert!(lines[0].contains("1 grants:"));
         assert!(lines[1].contains("blob-list"));
@@ -157,23 +157,23 @@ mod tests {
     }
 
     #[test]
-    fn grants_lines_filters_by_peer() {
+    fn filtered_grant_lines_filters_by_peer() {
         let (gs, _dir) = open_grants();
         let (id1, s1) = peer_str();
         let (id2, _) = peer_str();
         gs.grant(Privilege::BlobList, id1).unwrap();
         gs.grant(Privilege::BlobList, id2).unwrap();
-        let lines = grants_lines(&gs, Some(&s1), None).unwrap();
+        let lines = filtered_grant_lines(&gs, Some(&s1), None).unwrap();
         assert_eq!(lines.len(), 2, "header + one entry");
         assert!(lines[1].contains(&id1.to_string()));
         assert!(!lines[1].contains(&id2.to_string()));
     }
 
     #[test]
-    fn grants_lines_no_match_returns_no_grants_message() {
+    fn filtered_grant_lines_no_match_returns_no_grants_message() {
         let (gs, _dir) = open_grants();
         let (_, s) = peer_str();
-        let lines = grants_lines(&gs, Some(&s), None).unwrap();
+        let lines = filtered_grant_lines(&gs, Some(&s), None).unwrap();
         assert_eq!(lines, vec!["No grants.".to_owned()]);
     }
 
@@ -185,30 +185,30 @@ mod tests {
     }
 
     #[test]
-    fn grants_lines_filters_by_privilege() {
+    fn filtered_grant_lines_filters_by_privilege() {
         let (gs, _dir) = open_grants();
         let (id, _) = peer_str();
         gs.grant(Privilege::BlobList, id).unwrap();
-        let lines = grants_lines(&gs, None, Some("blob-list")).unwrap();
+        let lines = filtered_grant_lines(&gs, None, Some("blob-list")).unwrap();
         assert_eq!(lines.len(), 2, "header + one entry");
         assert!(lines[1].contains("blob-list"));
         assert!(lines[1].contains(&id.to_string()));
     }
 
     #[test]
-    fn grants_lines_and_filter_requires_both_conditions_to_match() {
+    fn filtered_grant_lines_and_filter_requires_both_conditions_to_match() {
         let (gs, _dir) = open_grants();
         let (id1, s1) = peer_str();
         let (id2, s2) = peer_str();
         gs.grant(Privilege::BlobList, id1).unwrap();
         gs.grant(Privilege::BlobList, id2).unwrap();
         // peer1 + blob-list: matches exactly one entry
-        let lines = grants_lines(&gs, Some(&s1), Some("blob-list")).unwrap();
+        let lines = filtered_grant_lines(&gs, Some(&s1), Some("blob-list")).unwrap();
         assert_eq!(lines.len(), 2, "header + one entry");
         assert!(lines[1].contains(&id1.to_string()));
         assert!(!lines[1].contains(&id2.to_string()));
         // peer2 + blob-list: matches the other entry only
-        let lines = grants_lines(&gs, Some(&s2), Some("blob-list")).unwrap();
+        let lines = filtered_grant_lines(&gs, Some(&s2), Some("blob-list")).unwrap();
         assert_eq!(lines.len(), 2, "header + one entry");
         assert!(lines[1].contains(&id2.to_string()));
         assert!(!lines[1].contains(&id1.to_string()));

@@ -49,3 +49,46 @@ pub(crate) fn relay_only_addr(full: EndpointAddr) -> EndpointAddr {
 pub fn parse_hash(s: &str) -> Result<Hash> {
     s.parse().map_err(|e| anyhow::anyhow!("invalid hash: {e}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use iroh::SecretKey;
+    use iroh_blobs::Hash;
+
+    use super::*;
+
+    #[test]
+    fn parse_peer_id_accepts_valid_key_string() {
+        let id = SecretKey::generate().public();
+        let s = id.to_string();
+        assert_eq!(parse_peer_id(&s).unwrap(), id);
+    }
+
+    #[test]
+    fn parse_peer_id_rejects_garbage() {
+        let err = parse_peer_id("not-a-valid-peer-id").unwrap_err();
+        assert!(err.to_string().contains("invalid peer id"));
+    }
+
+    #[test]
+    fn parse_hash_accepts_valid_hex() {
+        let hash = Hash::from_bytes([0x42; 32]);
+        let hex = hash.to_string();
+        assert_eq!(parse_hash(&hex).unwrap(), hash);
+    }
+
+    #[test]
+    fn parse_hash_rejects_invalid_hex_chars() {
+        // 64-char input triggers hex decoding; 'z' is not a hex digit → Err
+        let err = parse_hash(&"z".repeat(64)).unwrap_err();
+        assert!(err.to_string().contains("invalid hash"));
+    }
+
+    #[test]
+    fn relay_only_addr_preserves_node_id_when_no_relay() {
+        let id = SecretKey::generate().public();
+        let addr = EndpointAddr::new(id);
+        let result = relay_only_addr(addr);
+        assert_eq!(result.id, id);
+    }
+}

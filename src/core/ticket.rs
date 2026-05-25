@@ -127,3 +127,92 @@ impl ShareTicket {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use data_encoding::BASE32_NOPAD;
+    use iroh::{EndpointAddr, SecretKey};
+    use iroh_blobs::{BlobFormat, Hash};
+
+    use super::*;
+
+    fn make_addr() -> EndpointAddr {
+        EndpointAddr::new(SecretKey::generate().public())
+    }
+
+    fn test_hash() -> Hash {
+        Hash::from_bytes([0xab; 32])
+    }
+
+    #[test]
+    fn raw_ticket_round_trips_through_uri() {
+        let addr = make_addr();
+        let hash = test_hash();
+        let ticket = ShareTicket::new(addr.clone(), hash, Some("file.txt".into()));
+
+        let uri = ticket.to_uri().unwrap();
+        assert!(uri.starts_with("rdrop://"));
+
+        let decoded = ShareTicket::from_uri(&uri).unwrap();
+        assert_eq!(decoded.hash(), hash);
+        assert_eq!(decoded.format(), BlobFormat::Raw);
+        assert_eq!(decoded.name.as_deref(), Some("file.txt"));
+        assert_eq!(decoded.peer_id(), addr.id);
+    }
+
+    #[test]
+    fn collection_ticket_round_trips_through_uri() {
+        let addr = make_addr();
+        let ticket = ShareTicket::new_collection(addr, test_hash(), None);
+
+        let uri = ticket.to_uri().unwrap();
+        let decoded = ShareTicket::from_uri(&uri).unwrap();
+        assert_eq!(decoded.format(), BlobFormat::HashSeq);
+        assert_eq!(decoded.name, None);
+    }
+
+    #[test]
+    fn nameless_ticket_round_trips() {
+        let ticket = ShareTicket::new(make_addr(), test_hash(), None);
+        let decoded = ShareTicket::from_uri(&ticket.to_uri().unwrap()).unwrap();
+        assert_eq!(decoded.name, None);
+    }
+
+    #[test]
+    fn from_format_preserves_explicit_format() {
+        let ticket = ShareTicket::from_format(make_addr(), test_hash(), BlobFormat::HashSeq, None);
+        assert_eq!(ticket.format(), BlobFormat::HashSeq);
+    }
+
+    #[test]
+    fn accessors_return_construction_values() {
+        let addr = make_addr();
+        let hash = test_hash();
+        let ticket = ShareTicket::new(addr.clone(), hash, Some("test.bin".into()));
+
+        assert_eq!(ticket.hash(), hash);
+        assert_eq!(ticket.format(), BlobFormat::Raw);
+        assert_eq!(ticket.peer_id(), addr.id);
+        assert_eq!(ticket.node_addr().id, addr.id);
+    }
+
+    #[test]
+    fn from_uri_rejects_missing_rdrop_prefix() {
+        let err = ShareTicket::from_uri("https://example.com/abc").unwrap_err();
+        assert!(err.to_string().contains("rdrop://"));
+    }
+
+    #[test]
+    fn from_uri_rejects_bad_base32_payload() {
+        let err = ShareTicket::from_uri("rdrop://!!!not-base32!!!").unwrap_err();
+        assert!(err.to_string().contains("base32"));
+    }
+
+    #[test]
+    fn from_uri_rejects_valid_base32_but_invalid_json() {
+        let payload = BASE32_NOPAD.encode(b"not json at all").to_lowercase();
+        let uri = format!("rdrop://{payload}");
+        let err = ShareTicket::from_uri(&uri).unwrap_err();
+        assert!(err.to_string().contains("json"));
+    }
+}

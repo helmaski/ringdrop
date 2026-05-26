@@ -4,13 +4,6 @@
 //! Open [`LocalStore`] once via [`LocalStore::open`]; the returned value owns
 //! both stores and can be destructured into the fields expected by [`Node`].
 //!
-//! ## Migration
-//!
-//! Ringdrop < 0.10 kept grants and peers in separate `grants.redb` and
-//! `peers.redb` files. [`LocalStore::open`] automatically migrates those files
-//! into `local.redb` on the first startup after an upgrade, then deletes them.
-//! The migration is a no-op on fresh installs and on subsequent startups.
-//!
 //! [`Node`]: crate::core::Node
 
 use std::path::Path;
@@ -49,7 +42,7 @@ impl LocalStore {
     }
 }
 
-// ── Migration ──────────────────────────────────────────────────────────────
+// Migration
 
 /// Schema mirrors — must stay in sync with the definitions in `grants.rs` and
 /// `peers.rs`.

@@ -43,6 +43,8 @@ Full reference: [docs/cli.md](docs/cli.md)
 | `rdrop peer` | Manage the local peer address book with optional nicknames |
 | `rdrop import` | Import a file or directory and get a shareable ticket |
 | `rdrop blob` | Full blob lifecycle: import, list, remove |
+| `rdrop tag` | Associate an already-imported blob with a ring (or mark it open) |
+| `rdrop untag` | Remove ring associations from a blob (revoke access) |
 | `rdrop receive` | Download from a ticket (automatically resumes if interrupted) |
 | `rdrop grant` | Control which peers can query your blob list |
 | `rdrop remote` | Query blob lists on remote nodes |

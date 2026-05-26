@@ -82,6 +82,25 @@ pub(super) enum Cmd {
         open: bool,
     },
 
+    /// Remove ring associations from a blob (revoke access)
+    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open", "all"])))]
+    Untag {
+        /// Path (file or directory) or BLAKE3 hash (hex)
+        target: String,
+
+        /// Remove a named ring association (repeat for multiple)
+        #[arg(long = "ring", conflicts_with_all = ["open", "all"])]
+        rings: Vec<String>,
+
+        /// Remove the open-ring association (revoke public access)
+        #[arg(long, conflicts_with_all = ["rings", "all"])]
+        open: bool,
+
+        /// Remove all ring associations (blob becomes inaccessible)
+        #[arg(long, conflicts_with_all = ["rings", "open"])]
+        all: bool,
+    },
+
     /// Manage catalog access grants (control who can query your blob list)
     #[command(subcommand)]
     Grant(GrantCmd),

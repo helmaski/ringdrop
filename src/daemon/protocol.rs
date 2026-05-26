@@ -63,6 +63,19 @@ pub enum Op {
         /// Tag the blob as publicly accessible, overriding `rings`.
         open: bool,
     },
+    /// Remove ring associations from a blob. `target` is a filename or hex hash.
+    ///
+    /// Exactly one of `rings` (non-empty), `open`, or `all` must be set.
+    Untag {
+        /// File path or BLAKE3 hex hash identifying the blob to untag.
+        target: String,
+        /// Ring names to remove (used when `open` and `all` are both `false`).
+        rings: Vec<String>,
+        /// Remove the open-ring association, leaving named rings intact.
+        open: bool,
+        /// Remove every ring association, making the blob inaccessible.
+        all: bool,
+    },
     /// Create a new ring with the given name.
     RingNew {
         /// Name for the new ring (e.g. `"friends"` or `"work-team"`).
@@ -518,6 +531,33 @@ mod tests {
             json,
             r#"{"op":"ring_add","ring":"friends","peer":"abc123"}"#
         );
+    }
+
+    #[test]
+    fn op_untag_with_all_serializes_correctly() {
+        let json = serde_json::to_string(&Op::Untag {
+            target: "abc.txt".into(),
+            rings: vec![],
+            open: false,
+            all: true,
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            r#"{"op":"untag","target":"abc.txt","rings":[],"open":false,"all":true}"#
+        );
+    }
+
+    #[test]
+    fn op_untag_round_trips_through_json() {
+        let original = Op::Untag {
+            target: "abc.txt".into(),
+            rings: vec!["friends".into()],
+            open: false,
+            all: false,
+        };
+        let parsed: Op = serde_json::from_str(&serde_json::to_string(&original).unwrap()).unwrap();
+        assert_eq!(parsed, original);
     }
 
     #[test]

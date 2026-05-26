@@ -35,9 +35,12 @@
 //! rdrop blob remove file.txt
 //! rdrop blob remove <hash>
 //!
-//! # Re-tag a blob at any time
-//! rdrop tag file.txt --ring friends
-//! rdrop tag <hash> --open
+//! # Re-tag or untag a blob at any time
+//! rdrop tag file.txt --ring friends    # associate with a ring
+//! rdrop tag <hash> --open              # associate wth the public ring
+//! rdrop untag file.txt --ring friends  # remove one ring association
+//! rdrop untag <hash> --open            # revoke public ring association
+//! rdrop untag <hash> --all             # revoke all ring associations
 //!
 //! # Receive — resumes automatically if interrupted
 //! rdrop receive rdrop://ABCDEF... [--dest ./downloads]
@@ -140,6 +143,14 @@ pub async fn run() -> Result<()> {
             open,
         } => {
             command::tag::run_tag(target, rings, open, &data_dir).await?;
+        }
+        Cmd::Untag {
+            target,
+            rings,
+            open,
+            all,
+        } => {
+            command::tag::run_untag(target, rings, open, all, &data_dir).await?;
         }
         Cmd::Grant(cmd) => command::grant::run(cmd, &data_dir).await?,
         Cmd::Remote(cmd) => command::remote::run(cmd, &data_dir).await?,

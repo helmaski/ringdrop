@@ -1,5 +1,6 @@
 mod common;
 
+use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
@@ -63,6 +64,49 @@ async fn ring_add_self_is_rejected_via_daemon() {
     daemon.shutdown().await;
 }
 
+/// Import `file` via the daemon and create `rings` beforehand.
+async fn import_with_rings(daemon: &common::TestDaemon, file: &std::path::Path, rings: &[&str]) {
+    for ring in rings {
+        daemon
+            .client
+            .run(Op::RingNew {
+                name: (*ring).into(),
+            })
+            .await
+            .unwrap();
+    }
+    daemon
+        .client
+        .run(Op::Import {
+            path: file.to_path_buf(),
+            rings: rings.iter().map(|r| (*r).to_owned()).collect(),
+            open: false,
+        })
+        .await
+        .unwrap();
+}
+
+/// Returns the lines from `BlobList` filtered to `ring`.
+async fn blob_list_for_ring(daemon: &common::TestDaemon, ring: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    daemon
+        .client
+        .send(
+            Op::BlobList {
+                peer: None,
+                rings: Some(vec![ring.to_owned()]),
+            },
+            |event| {
+                if let EventKind::Line { text } = event.kind {
+                    lines.push(text);
+                }
+            },
+        )
+        .await
+        .unwrap();
+    lines
+}
+
 #[tokio::test]
 async fn tag_with_no_rings_and_no_open_returns_error() {
     let daemon = common::TestDaemon::start().await;
@@ -79,6 +123,159 @@ async fn tag_with_no_rings_and_no_open_returns_error() {
         err.to_string().contains("nothing to tag"),
         "expected 'nothing to tag' in error; got: {err}"
     );
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn untag_all_removes_every_ring_association() {
+    let daemon = common::TestDaemon::start().await;
+    let src = TempDir::new().unwrap();
+    let file = common::write_file(src.path(), "data.txt", b"content").await;
+
+    import_with_rings(&daemon, &file, &["friends"]).await;
+
+    let mut lines = Vec::new();
+    daemon
+        .client
+        .send(
+            Op::Untag {
+                target: file.to_string_lossy().into_owned(),
+                rings: vec![],
+                open: false,
+                all: true,
+            },
+            |event| {
+                if let EventKind::Line { text } = event.kind {
+                    lines.push(text);
+                }
+            },
+        )
+        .await
+        .unwrap();
+    assert!(
+        lines.iter().any(|l| l.contains("all rings")),
+        "expected confirmation mentioning 'all rings'; got: {lines:?}"
+    );
+
+    let ring_lines = blob_list_for_ring(&daemon, "friends").await;
+    assert_eq!(
+        ring_lines,
+        vec!["No blobs in local store."],
+        "blob should no longer appear under 'friends' after untag --all"
+    );
+
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn untag_ring_removes_only_that_ring() {
+    let daemon = common::TestDaemon::start().await;
+    let src = TempDir::new().unwrap();
+    let file = common::write_file(src.path(), "data.txt", b"content").await;
+
+    import_with_rings(&daemon, &file, &["friends", "work"]).await;
+
+    daemon
+        .client
+        .run(Op::Untag {
+            target: file.to_string_lossy().into_owned(),
+            rings: vec!["friends".into()],
+            open: false,
+            all: false,
+        })
+        .await
+        .unwrap();
+
+    let friends_lines = blob_list_for_ring(&daemon, "friends").await;
+    assert_eq!(
+        friends_lines,
+        vec!["No blobs in local store."],
+        "blob should be gone from 'friends'"
+    );
+
+    let work_lines = blob_list_for_ring(&daemon, "work").await;
+    assert!(
+        work_lines.iter().any(|l| l.contains("1 blobs")),
+        "blob must still appear under 'work'"
+    );
+
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn untag_open_revokes_public_access_keeping_named_rings() {
+    let daemon = common::TestDaemon::start().await;
+    let src = TempDir::new().unwrap();
+    let file = common::write_file(src.path(), "data.txt", b"content").await;
+
+    import_with_rings(&daemon, &file, &["friends"]).await;
+    daemon
+        .client
+        .run(Op::Tag {
+            target: file.to_string_lossy().into_owned(),
+            rings: vec![],
+            open: true,
+        })
+        .await
+        .unwrap();
+
+    daemon
+        .client
+        .run(Op::Untag {
+            target: file.to_string_lossy().into_owned(),
+            rings: vec![],
+            open: true,
+            all: false,
+        })
+        .await
+        .unwrap();
+
+    let open_lines = blob_list_for_ring(&daemon, "open").await;
+    assert_eq!(
+        open_lines,
+        vec!["No blobs in local store."],
+        "blob should no longer appear in the open ring"
+    );
+
+    let friends_lines = blob_list_for_ring(&daemon, "friends").await;
+    assert!(
+        friends_lines.iter().any(|l| l.contains("1 blobs")),
+        "blob must still appear under 'friends'"
+    );
+
+    daemon.shutdown().await;
+}
+
+#[tokio::test]
+async fn untag_ring_when_not_associated_returns_error() {
+    let daemon = common::TestDaemon::start().await;
+    let src = TempDir::new().unwrap();
+    let file = common::write_file(src.path(), "data.txt", b"content").await;
+
+    import_with_rings(&daemon, &file, &["friends"]).await;
+    daemon
+        .client
+        .run(Op::RingNew {
+            name: "work".into(),
+        })
+        .await
+        .unwrap();
+
+    let err = daemon
+        .client
+        .run(Op::Untag {
+            target: file.to_string_lossy().into_owned(),
+            rings: vec!["work".into()],
+            open: false,
+            all: false,
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("not tagged with"),
+        "expected 'not tagged with' in error; got: {err}"
+    );
+
     daemon.shutdown().await;
 }
 

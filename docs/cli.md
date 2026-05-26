@@ -147,6 +147,34 @@ rdrop tag <hash>  --ring friends
 rdrop tag <hash>  --open
 ```
 
+---
+
+## `rdrop untag`
+
+Remove ring associations from an already-imported blob, revoking access for the affected rings.
+
+| Flag | Description |
+|---|---|
+| `--ring <name>` | Remove a specific ring (repeatable) |
+| `--open` | Revoke public access (removes the open-ring association) |
+| `--all` | Remove every ring association; blob becomes inaccessible to all peers |
+
+Exactly one of `--ring`, `--open`, or `--all` must be given; they are mutually exclusive.
+
+```sh
+rdrop untag <file>  --ring friends          # revoke friends-ring access
+rdrop untag <file>  --ring friends --ring work  # remove two rings at once
+rdrop untag <file>  --open                  # make no longer publicly accessible
+rdrop untag <hash>  --all                   # revoke all access
+```
+
+**Notes:**
+- Untagging with `--ring` or `--open` preserves all other ring associations.
+- If the blob is not currently tagged with the specified ring, the command errors.
+- `--all` always succeeds, even if the blob has no ring associations.
+
+---
+
 ## `rdrop receive`
 
 Download a blob from an `rdrop://` ticket. Automatically resumes if interrupted — no verified data is re-transferred.

@@ -1,10 +1,12 @@
-//! Shared CLI/daemon utilities: default paths and argument parsers.
+//! Shared CLI/daemon utilities: default paths, argument parsers, and display helpers.
 
 use std::path::PathBuf;
 
 use anyhow::Result;
 use iroh::{EndpointAddr, EndpointId};
 use iroh_blobs::Hash;
+
+use crate::core::peers::PeerStore;
 
 /// Returns `~/.ringdrop`, falling back to `.ringdrop` in the current directory
 /// if the home directory cannot be determined.
@@ -37,6 +39,18 @@ pub(crate) fn relay_only_addr(full: EndpointAddr) -> EndpointAddr {
         .fold(EndpointAddr::new(full.id), |a, url| {
             a.with_relay_url(url.clone())
         })
+}
+
+/// Format a peer for display, resolving its nickname from the peer store.
+///
+/// Returns `"nickname (peer_id)"` when a nickname is set, or the full peer ID
+/// string when the peer is unknown or has no nickname. Silently falls back to
+/// the raw ID on store read errors.
+pub(crate) fn display_peer(peer: &EndpointId, store: &PeerStore) -> String {
+    match store.get(peer) {
+        Ok(Some(Some(nick))) => format!("{peer}  ({nick})"),
+        _ => peer.to_string(),
+    }
 }
 
 /// Parse a BLAKE3 [`Hash`] from its hex string representation.

@@ -11,10 +11,12 @@
 
 pub mod grants;
 mod node;
+pub mod peers;
 mod protocol;
 mod ticket;
 
 pub use grants::{GrantStore, Privilege};
 pub use node::Node;
+pub use peers::PeerStore;
 pub use protocol::catalog::CatalogEntry;
 pub use ticket::ShareTicket;

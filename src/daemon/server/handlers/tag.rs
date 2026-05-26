@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::core::Node;
 use crate::daemon::protocol::Event;
 
-use super::{format_ring, resolve_target, send};
+use super::{resolve_target, send};
 
 pub(crate) async fn handle_tag<R: Registry + Clone + Send + Sync + 'static>(
     req_id: Uuid,
@@ -48,37 +48,6 @@ pub(crate) async fn handle_tag<R: Registry + Clone + Send + Sync + 'static>(
             ),
         )
         .await;
-    }
-    send(tx, Event::done(req_id)).await;
-    Ok(())
-}
-
-pub(crate) async fn handle_tags<R: Registry + Clone + Send + Sync + 'static>(
-    req_id: Uuid,
-    node: &Node<R>,
-    tx: &mpsc::Sender<Event>,
-    target: String,
-) -> Result<()> {
-    let hash = resolve_target(node, &target).await?;
-    let rings = node.registry.list_resource_rings(*hash.as_bytes())?;
-    if rings.is_empty() {
-        send(
-            tx,
-            Event::line(
-                req_id,
-                format!("{hash}: no rings (access denied to all peers)"),
-            ),
-        )
-        .await;
-    } else {
-        send(
-            tx,
-            Event::line(req_id, format!("{}: {} rings:", hash, rings.len())),
-        )
-        .await;
-        for (ring, _) in &rings {
-            send(tx, Event::line(req_id, format_ring(ring))).await;
-        }
     }
     send(tx, Event::done(req_id)).await;
     Ok(())

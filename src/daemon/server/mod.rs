@@ -242,9 +242,6 @@ async fn handle_op<R: Registry + Clone + Send + Sync + 'static>(
         } => {
             handlers::tag::handle_tag(req_id, node, tx, target, rings, open).await?;
         }
-        Op::Tags { target } => {
-            handlers::tag::handle_tags(req_id, node, tx, target).await?;
-        }
         Op::RingNew { name } => {
             let lines = handlers::ring::ring_new_lines(&node.registry, &name)?;
             send_lines(tx, req_id, &lines).await;

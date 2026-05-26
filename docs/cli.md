@@ -68,7 +68,7 @@ rdrop ring members friends
 ```
 
 **Notes:**
-- `ring add` auto-registers the peer in the local address book if not already present. Use `rdrop peer nick` afterward to assign a nickname.
+- `ring add` auto-registers the peer in the local address book if not already present. Use `rdrop peer add <peer-id> --nickname <name>` afterward to assign a nickname.
 - The built-in `open` ring has no membership list — any peer can access blobs tagged with it.
 
 ---
@@ -93,8 +93,8 @@ rdrop peer remove <peer-id>
 ```
 
 **Notes:**
-- `peer add` is idempotent: calling it twice with the same peer and nickname is a no-op.
-- `peer add` without `--nickname` preserves any existing nickname.
+- `peer add` is idempotent: re-running with the same peer and nickname is a no-op.
+- `peer add --nickname <name>` updates any existing nickname.
 - `peer remove` also removes the peer from every ring and revokes all their catalog grants.
 - `peer remove` errors if the peer is not in the address book (consistent with `ring remove` and `grant remove`).
 
@@ -146,17 +146,6 @@ rdrop tag <file>  --open
 rdrop tag <hash>  --ring friends
 rdrop tag <hash>  --open
 ```
-
-## `rdrop tags`
-
-Show which rings a blob is currently tagged with.
-
-```sh
-rdrop tags <file>
-rdrop tags <hash>
-```
-
----
 
 ## `rdrop receive`
 

@@ -82,12 +82,6 @@ pub(super) enum Cmd {
         open: bool,
     },
 
-    /// Show which rings a file is tagged with
-    Tags {
-        /// Path (file or directory) or BLAKE3 hash (hex)
-        target: String,
-    },
-
     /// Manage catalog access grants (control who can query your blob list)
     #[command(subcommand)]
     Grant(GrantCmd),

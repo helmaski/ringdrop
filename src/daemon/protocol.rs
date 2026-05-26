@@ -63,11 +63,6 @@ pub enum Op {
         /// Tag the blob as publicly accessible, overriding `rings`.
         open: bool,
     },
-    /// List the rings a blob is tagged with. `target` is a filename or hex hash.
-    Tags {
-        /// File path or BLAKE3 hex hash identifying the blob to inspect.
-        target: String,
-    },
     /// Create a new ring with the given name.
     RingNew {
         /// Name for the new ring (e.g. `"friends"` or `"work-team"`).

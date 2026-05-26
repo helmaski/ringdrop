@@ -15,6 +15,7 @@ pub(super) mod blob;
 pub(super) mod daemon;
 pub(super) mod grant;
 pub(super) mod id;
+pub(super) mod peer;
 pub(super) mod receive;
 pub(super) mod remote;
 pub(super) mod ring;
@@ -25,6 +26,10 @@ pub(super) enum Cmd {
     /// Manage rings
     #[command(subcommand)]
     Ring(RingCmd),
+
+    /// Manage the local peer address book
+    #[command(subcommand)]
+    Peer(PeerCmd),
 
     /// Manage blobs (import, list, remove)
     #[command(subcommand)]
@@ -194,15 +199,11 @@ pub(super) enum RingCmd {
     /// List all rings
     List,
 
-    /// Add a peer to a ring
+    /// Add a peer to a ring (registers the peer in the address book if not already present)
     Add {
         ring: String,
         #[arg(value_name = "PEER-ID")]
         peer: String,
-
-        /// Optional display label for this peer
-        #[arg(long)]
-        nickname: Option<String>,
     },
 
     /// Remove a peer from a ring
@@ -214,4 +215,37 @@ pub(super) enum RingCmd {
 
     /// List members of a ring
     Members { ring: String },
+}
+
+#[derive(Subcommand)]
+pub(super) enum PeerCmd {
+    /// Register a peer in the local address book, optionally with a nickname
+    Add {
+        /// Base32 peer-id to register
+        #[arg(value_name = "PEER-ID")]
+        peer: String,
+        /// Human-readable label for this peer
+        #[arg(long)]
+        nickname: Option<String>,
+    },
+
+    /// List all peers in the local address book
+    List,
+
+    /// Set or update the nickname for a known peer
+    Nick {
+        /// Base32 peer-id to rename
+        #[arg(value_name = "PEER-ID")]
+        peer: String,
+        /// New nickname to assign
+        #[arg(value_name = "NICKNAME")]
+        nickname: String,
+    },
+
+    /// Remove a peer from the address book and from all rings
+    Remove {
+        /// Base32 peer-id to remove
+        #[arg(value_name = "PEER-ID")]
+        peer: String,
+    },
 }

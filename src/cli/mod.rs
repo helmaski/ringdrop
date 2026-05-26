@@ -14,8 +14,15 @@
 //! # Manage rings
 //! rdrop ring new friends               # create a ring named "friends"
 //! rdrop ring list                      # list all rings
-//! rdrop ring add friends <peer-id>     # add a peer to a ring
+//! rdrop ring add friends <peer-id>     # add a peer to a ring (auto-registers in address book)
 //! rdrop ring members friends
+//!
+//! # Manage the local peer address book
+//! rdrop peer add <peer-id>                    # register a peer
+//! rdrop peer add <peer-id> --nickname alice   # register with a nickname
+//! rdrop peer list                             # list all known peers
+//! rdrop peer nick <peer-id> alice             # set or update a nickname
+//! rdrop peer remove <peer-id>                 # remove peer from address book and all rings
 //!
 //! # Import a file and get a ticket (shortcut)
 //! rdrop import file.txt                       # untagged — warns until tagged
@@ -99,6 +106,7 @@ pub async fn run() -> Result<()> {
 
     match cli.command {
         Cmd::Ring(cmd) => command::ring::run(cmd, &data_dir).await?,
+        Cmd::Peer(cmd) => command::peer::run(cmd, &data_dir).await?,
         Cmd::Blob(cmd) => command::blob::run(cmd, &data_dir).await?,
         Cmd::Import { path, rings, open } => {
             command::blob::run_import(path, rings, open, &data_dir).await?;

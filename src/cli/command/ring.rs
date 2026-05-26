@@ -11,15 +11,7 @@ pub(crate) async fn run(cmd: RingCmd, data_dir: &Path) -> Result<()> {
     let op = match cmd {
         RingCmd::New { name } => Op::RingNew { name },
         RingCmd::List => Op::RingList,
-        RingCmd::Add {
-            ring,
-            peer,
-            nickname,
-        } => Op::RingAdd {
-            ring,
-            peer,
-            nickname,
-        },
+        RingCmd::Add { ring, peer } => Op::RingAdd { ring, peer },
         RingCmd::Remove { ring, peer } => Op::RingRemove { ring, peer },
         RingCmd::Members { ring } => Op::RingMembers { ring },
     };

@@ -9,6 +9,7 @@
 use anyhow::Result;
 use iroh_rings::Registry;
 
+use crate::core::grants::{GrantStore, Privilege};
 use crate::core::peers::PeerStore;
 use crate::util::{format_peer_entry, parse_peer_id};
 
@@ -72,7 +73,7 @@ pub(crate) fn peer_nick_lines(
     )])
 }
 
-/// Remove a peer from the store and from all rings.
+/// Remove a peer from the store, all rings, and all catalog grants.
 ///
 /// Errors if the peer is not in the store, consistent with how `ring remove`
 /// and `grant remove` behave.
@@ -83,6 +84,7 @@ pub(crate) fn peer_nick_lines(
 /// store write fails.
 pub(crate) fn peer_remove_lines<R: Registry>(
     peer_store: &PeerStore,
+    grant_store: &GrantStore,
     registry: &R,
     peer_str: &str,
 ) -> Result<Vec<String>> {
@@ -104,6 +106,14 @@ pub(crate) fn peer_remove_lines<R: Registry>(
         }
     }
 
+    let mut revoked: Vec<&str> = Vec::new();
+    for privilege in [Privilege::BlobList] {
+        if grant_store.has_grant(privilege, &peer_id)? {
+            grant_store.revoke(privilege, peer_id)?;
+            revoked.push(privilege.as_str());
+        }
+    }
+
     peer_store.remove(peer_id)?;
 
     let mut out = vec![format!("Removed peer {peer_id}")];
@@ -112,6 +122,9 @@ pub(crate) fn peer_remove_lines<R: Registry>(
             "  also removed from rings: {}",
             removed_from.join(", ")
         ));
+    }
+    if !revoked.is_empty() {
+        out.push(format!("  also revoked grants: {}", revoked.join(", ")));
     }
     Ok(out)
 }
@@ -122,10 +135,11 @@ mod tests {
     use iroh_rings::RedbRegistry;
     use tempfile::TempDir;
 
-    fn setup(dir: &TempDir) -> (RedbRegistry, PeerStore) {
+    fn setup(dir: &TempDir) -> (RedbRegistry, PeerStore, GrantStore) {
         let registry = RedbRegistry::open(dir.path().join("registry.redb")).unwrap();
         let peers = PeerStore::open(dir.path().join("peers.redb")).unwrap();
-        (registry, peers)
+        let grants = GrantStore::open(dir.path().join("grants.redb")).unwrap();
+        (registry, peers, grants)
     }
 
     fn new_peer() -> (iroh::EndpointId, String) {
@@ -136,7 +150,7 @@ mod tests {
     #[test]
     fn peer_add_without_nickname_adds_peer() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let (peer_id, peer_str) = new_peer();
 
         let lines = peer_add_lines(&peers, &peer_str, None).unwrap();
@@ -147,7 +161,7 @@ mod tests {
     #[test]
     fn peer_add_with_nickname_stores_nickname() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let (peer_id, peer_str) = new_peer();
 
         peer_add_lines(&peers, &peer_str, Some("alice")).unwrap();
@@ -157,7 +171,7 @@ mod tests {
     #[test]
     fn peer_add_on_existing_peer_updates_nickname() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let (peer_id, peer_str) = new_peer();
 
         peer_add_lines(&peers, &peer_str, Some("alice")).unwrap();
@@ -171,7 +185,7 @@ mod tests {
     #[test]
     fn peer_list_on_empty_store_returns_no_peers_message() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let lines = peer_list_lines(&peers).unwrap();
         assert_eq!(lines[0], "No peers yet.");
     }
@@ -179,7 +193,7 @@ mod tests {
     #[test]
     fn peer_list_returns_count_and_one_line_per_peer() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let (id, _) = new_peer();
         peers.upsert(id, Some("alice")).unwrap();
 
@@ -193,7 +207,7 @@ mod tests {
     #[test]
     fn peer_nick_updates_existing_peer() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let (peer_id, peer_str) = new_peer();
         peers.upsert(peer_id, None).unwrap();
 
@@ -204,7 +218,7 @@ mod tests {
     #[test]
     fn peer_nick_on_unknown_peer_errors() {
         let dir = TempDir::new().unwrap();
-        let (_, peers) = setup(&dir);
+        let (_, peers, _) = setup(&dir);
         let (_, peer_str) = new_peer();
         assert!(peer_nick_lines(&peers, &peer_str, "ghost").is_err());
     }
@@ -212,7 +226,7 @@ mod tests {
     #[test]
     fn peer_remove_removes_from_store_and_all_rings() {
         let dir = TempDir::new().unwrap();
-        let (registry, peers) = setup(&dir);
+        let (registry, peers, grants) = setup(&dir);
         let (peer_id, peer_str) = new_peer();
         peers.upsert(peer_id, Some("alice")).unwrap();
         registry.create_ring("friends").unwrap();
@@ -220,7 +234,7 @@ mod tests {
         registry.add_peer_to_ring("friends", peer_id, None).unwrap();
         registry.add_peer_to_ring("work", peer_id, None).unwrap();
 
-        let lines = peer_remove_lines(&peers, &registry, &peer_str).unwrap();
+        let lines = peer_remove_lines(&peers, &grants, &registry, &peer_str).unwrap();
 
         assert!(peers.get(&peer_id).unwrap().is_none());
         assert!(registry
@@ -239,22 +253,36 @@ mod tests {
     }
 
     #[test]
+    fn peer_remove_also_revokes_grants() {
+        let dir = TempDir::new().unwrap();
+        let (registry, peers, grants) = setup(&dir);
+        let (peer_id, peer_str) = new_peer();
+        peers.upsert(peer_id, None).unwrap();
+        grants.grant(Privilege::BlobList, peer_id).unwrap();
+
+        let lines = peer_remove_lines(&peers, &grants, &registry, &peer_str).unwrap();
+
+        assert!(!grants.has_grant(Privilege::BlobList, &peer_id).unwrap());
+        assert!(lines.iter().any(|l| l.contains("blob-list")));
+    }
+
+    #[test]
     fn peer_remove_on_unknown_peer_errors() {
         let dir = TempDir::new().unwrap();
-        let (registry, peers) = setup(&dir);
+        let (registry, peers, grants) = setup(&dir);
         let (_, peer_str) = new_peer();
-        assert!(peer_remove_lines(&peers, &registry, &peer_str).is_err());
+        assert!(peer_remove_lines(&peers, &grants, &registry, &peer_str).is_err());
     }
 
     #[test]
     fn peer_remove_with_no_ring_memberships_succeeds() {
         let dir = TempDir::new().unwrap();
-        let (registry, peers) = setup(&dir);
+        let (registry, peers, grants) = setup(&dir);
         let (peer_id, peer_str) = new_peer();
         peers.upsert(peer_id, None).unwrap();
 
-        let lines = peer_remove_lines(&peers, &registry, &peer_str).unwrap();
+        let lines = peer_remove_lines(&peers, &grants, &registry, &peer_str).unwrap();
         assert!(lines[0].contains(&peer_id.to_string()));
-        assert_eq!(lines.len(), 1, "no 'also removed from rings' line expected");
+        assert_eq!(lines.len(), 1, "no extra lines expected");
     }
 }

@@ -292,7 +292,12 @@ async fn handle_op<R: Registry + Clone + Send + Sync + 'static>(
             let _ = tx.send(Event::done(req_id)).await;
         }
         Op::PeerRemove { peer } => {
-            let lines = handlers::peer::peer_remove_lines(&node.peers, &node.registry, &peer)?;
+            let lines = handlers::peer::peer_remove_lines(
+                &node.peers,
+                &node.grants,
+                &node.registry,
+                &peer,
+            )?;
             send_lines(tx, req_id, &lines).await;
             let _ = tx.send(Event::done(req_id)).await;
         }

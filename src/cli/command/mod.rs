@@ -15,6 +15,7 @@ pub(super) mod blob;
 pub(super) mod daemon;
 pub(super) mod grant;
 pub(super) mod id;
+pub(super) mod peer;
 pub(super) mod receive;
 pub(super) mod remote;
 pub(super) mod ring;
@@ -25,6 +26,10 @@ pub(super) enum Cmd {
     /// Manage rings
     #[command(subcommand)]
     Ring(RingCmd),
+
+    /// Manage the local peer address book
+    #[command(subcommand)]
+    Peer(PeerCmd),
 
     /// Manage blobs (import, list, remove)
     #[command(subcommand)]
@@ -77,10 +82,23 @@ pub(super) enum Cmd {
         open: bool,
     },
 
-    /// Show which rings a file is tagged with
-    Tags {
+    /// Remove ring associations from a blob (revoke access)
+    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open", "all"])))]
+    Untag {
         /// Path (file or directory) or BLAKE3 hash (hex)
         target: String,
+
+        /// Remove a named ring association (repeat for multiple)
+        #[arg(long = "ring", conflicts_with_all = ["open", "all"])]
+        rings: Vec<String>,
+
+        /// Remove the open-ring association (revoke public access)
+        #[arg(long, conflicts_with_all = ["rings", "all"])]
+        open: bool,
+
+        /// Remove all ring associations (blob becomes inaccessible)
+        #[arg(long, conflicts_with_all = ["rings", "open"])]
+        all: bool,
     },
 
     /// Manage catalog access grants (control who can query your blob list)
@@ -194,15 +212,11 @@ pub(super) enum RingCmd {
     /// List all rings
     List,
 
-    /// Add a peer to a ring
+    /// Add a peer to a ring (registers the peer in the address book if not already present)
     Add {
         ring: String,
         #[arg(value_name = "PEER-ID")]
         peer: String,
-
-        /// Optional display label for this peer
-        #[arg(long)]
-        nickname: Option<String>,
     },
 
     /// Remove a peer from a ring
@@ -214,4 +228,27 @@ pub(super) enum RingCmd {
 
     /// List members of a ring
     Members { ring: String },
+}
+
+#[derive(Subcommand)]
+pub(super) enum PeerCmd {
+    /// Register a peer in the local address book, optionally with a nickname
+    Add {
+        /// Base32 peer-id to register
+        #[arg(value_name = "PEER-ID")]
+        peer: String,
+        /// Human-readable label for this peer
+        #[arg(long)]
+        nickname: Option<String>,
+    },
+
+    /// List all peers in the local address book
+    List,
+
+    /// Remove a peer from the address book and from all rings
+    Remove {
+        /// Base32 peer-id to remove
+        #[arg(value_name = "PEER-ID")]
+        peer: String,
+    },
 }

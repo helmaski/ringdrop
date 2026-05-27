@@ -19,10 +19,10 @@
 //! │                 DaemonServer                 │
 //! │               (owns the Node)                │
 //! │  ┌───────────────────┴────────────────────┐  │
-//! │  │                Node<R>                 │  │
+//! │  │                  Node                  │  │
 //! │  │  ┌──────────────────────────────────┐  │  │
-//! │  │  │ FsStore   Registry (R)   Grants  │  │  │
-//! │  │  │    └───────────┬──────────┘      │  │  │
+//! │  │  │ FsStore  Registry  Grants  Peers │  │  │
+//! │  │  │    └───────────┬─────────────┘   │  │  │
 //! │  │  │  ┌─────────────┴─────────────┐   │  │  │
 //! │  │  │  │        RingGate           │   │  │  │
 //! │  │  │  │    (/iroh-rings/2)        │   │  │  │
@@ -57,4 +57,5 @@ pub mod cli;
 pub mod config;
 pub mod core;
 pub mod daemon;
+pub(crate) mod local_store;
 pub mod util;

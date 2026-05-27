@@ -5,6 +5,9 @@
 //!  - an iroh-blobs `FsStore`   — BLAKE3 chunking, outboard, bitfield tracking
 //!  - a `RingGate`              — custom ALPN with permission-typed access control
 //!  - a `Registry`              — ring membership and permission-typed resource associations
+//!  - a [`GrantStore`] + [`PeerStore`] — opened together from `local.redb` via [`LocalStore`]
+//!
+//! [`LocalStore`]: crate::local_store::LocalStore
 
 use std::{
     collections::HashSet,
@@ -26,12 +29,14 @@ use tracing::info;
 use walkdir::WalkDir;
 
 use super::grants::GrantStore;
+use super::peers::PeerStore;
 use super::protocol::catalog::{
     decode_entries, CatalogEntry, CatalogHandler, ALLOWED, BLOB_LIST, CATALOG_ALPN,
 };
 use super::protocol::{RingGate, RingReceiver};
 use super::ticket::ShareTicket;
 use crate::config::Config;
+use crate::local_store::LocalStore;
 use iroh_rings::{FsTransfer, Permission, Registry, OPEN_RING_NAME};
 
 use crate::util::parse_peer_id;
@@ -54,6 +59,8 @@ pub struct Node<R> {
     pub registry: R,
     /// The grant store — controls which peers may invoke catalog operations.
     pub grants: GrantStore,
+    /// The peer store — local address book mapping peer IDs to nicknames.
+    pub peers: PeerStore,
     router: Router,
 }
 
@@ -123,8 +130,9 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             .await
             .context("loading FsStore")?;
 
-        let grants =
-            GrantStore::open(data_dir.join("grants.redb")).context("opening grants database")?;
+        let local = LocalStore::open(&data_dir)?;
+        let grants = local.grants;
+        let peers = local.peers;
 
         let gate = RingGate::new(
             registry.clone(),
@@ -150,6 +158,7 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
             store,
             registry,
             grants,
+            peers,
             router,
         })
     }

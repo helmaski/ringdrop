@@ -14,8 +14,14 @@
 //! # Manage rings
 //! rdrop ring new friends               # create a ring named "friends"
 //! rdrop ring list                      # list all rings
-//! rdrop ring add friends <peer-id>     # add a peer to a ring
+//! rdrop ring add friends <peer-id>     # add a peer to a ring (auto-registers in address book)
 //! rdrop ring members friends
+//!
+//! # Manage the local peer address book
+//! rdrop peer add <peer-id>                    # register a peer
+//! rdrop peer add <peer-id> --nickname alice   # register with a nickname (idempotent; re-run to rename)
+//! rdrop peer list                             # list all known peers
+//! rdrop peer remove <peer-id>                 # remove peer from address book, rings, and grants
 //!
 //! # Import a file and get a ticket (shortcut)
 //! rdrop import file.txt                       # untagged — warns until tagged
@@ -29,9 +35,12 @@
 //! rdrop blob remove file.txt
 //! rdrop blob remove <hash>
 //!
-//! # Re-tag a blob at any time
-//! rdrop tag file.txt --ring friends
-//! rdrop tag <hash> --open
+//! # Re-tag or untag a blob at any time
+//! rdrop tag file.txt --ring friends    # associate with a ring
+//! rdrop tag <hash> --open              # associate wth the public ring
+//! rdrop untag file.txt --ring friends  # remove one ring association
+//! rdrop untag <hash> --open            # revoke public ring association
+//! rdrop untag <hash> --all             # revoke all ring associations
 //!
 //! # Receive — resumes automatically if interrupted
 //! rdrop receive rdrop://ABCDEF... [--dest ./downloads]
@@ -49,6 +58,17 @@ mod command;
 
 use std::path::PathBuf;
 
+const ABOUT: &str = "P2P streamed file transfer with ring-based access control.\n\
+                     Built on iroh and bao protocols.";
+
+const LONG_ABOUT: &str = concat!(
+    "P2P streamed file transfer with ring-based access control.\n",
+    "Built on iroh and bao protocols.\n\n",
+    "Full CLI reference: https://github.com/rikettsie/ringdrop/blob/v",
+    env!("CARGO_PKG_VERSION"),
+    "/docs/cli.md"
+);
+
 use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -59,8 +79,8 @@ use command::{Cmd, DaemonCmd};
 #[derive(Parser)]
 #[command(
     name = "rdrop",
-    about = "P2P streamed file transfer with ring-based access control.\n\
-             Built on iroh and bao protocols.",
+    about = ABOUT,
+    long_about = LONG_ABOUT,
     version
 )]
 struct Cli {
@@ -99,6 +119,7 @@ pub async fn run() -> Result<()> {
 
     match cli.command {
         Cmd::Ring(cmd) => command::ring::run(cmd, &data_dir).await?,
+        Cmd::Peer(cmd) => command::peer::run(cmd, &data_dir).await?,
         Cmd::Blob(cmd) => command::blob::run(cmd, &data_dir).await?,
         Cmd::Import { path, rings, open } => {
             command::blob::run_import(path, rings, open, &data_dir).await?;
@@ -123,7 +144,14 @@ pub async fn run() -> Result<()> {
         } => {
             command::tag::run_tag(target, rings, open, &data_dir).await?;
         }
-        Cmd::Tags { target } => command::tag::run_tags(target, &data_dir).await?,
+        Cmd::Untag {
+            target,
+            rings,
+            open,
+            all,
+        } => {
+            command::tag::run_untag(target, rings, open, all, &data_dir).await?;
+        }
         Cmd::Grant(cmd) => command::grant::run(cmd, &data_dir).await?,
         Cmd::Remote(cmd) => command::remote::run(cmd, &data_dir).await?,
         Cmd::Id => command::id::run(&data_dir).await?,

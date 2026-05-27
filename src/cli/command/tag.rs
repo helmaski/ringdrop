@@ -19,8 +19,19 @@ pub(crate) async fn run_tag(
         .await
 }
 
-pub(crate) async fn run_tags(target: String, data_dir: &Path) -> Result<()> {
+pub(crate) async fn run_untag(
+    target: String,
+    rings: Vec<String>,
+    open: bool,
+    all: bool,
+    data_dir: &Path,
+) -> Result<()> {
     super::daemon_client(data_dir)?
-        .run(Op::Tags { target })
+        .run(Op::Untag {
+            target,
+            rings,
+            open,
+            all,
+        })
         .await
 }

@@ -46,11 +46,11 @@ pub(crate) async fn run(
     pb.set_style(
         ProgressStyle::default_bar()
             .template(
-                "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] \
+                "{spinner:.green} [{elapsed_precise}] [{bar:40.green/yellow}] \
                  {bytes}/{total_bytes} ({bytes_per_sec}, {eta})",
             )
             .unwrap()
-            .progress_chars("#>-"),
+            .progress_chars("█▷ "),
     );
 
     let mut error_msg: Option<String> = None;

@@ -55,8 +55,10 @@ const PEERS: TableDefinition<'_, &[u8], &str> = TableDefinition::new("peers");
 /// present (fresh install). Otherwise:
 ///
 /// 1. Copies all rows into `local.redb.tmp`.
-/// 2. Atomically renames `.tmp` → `local.redb`.
-/// 3. Deletes the old files.
+/// 2. Backfills any peers found in ring memberships (`registry.redb`) that
+///    were not in `peers.redb` — inserted with no nickname.
+/// 3. Atomically renames `.tmp` → `local.redb`.
+/// 4. Deletes the old files.
 ///
 /// A leftover `.tmp` from a previous failed attempt is cleaned up before
 /// starting. If any step fails the old files are left untouched so the next
@@ -65,6 +67,7 @@ fn migrate_if_needed(data_dir: &Path) -> Result<()> {
     let local_path = data_dir.join("local.redb");
     let grants_path = data_dir.join("grants.redb");
     let peers_path = data_dir.join("peers.redb");
+    let registry_path = data_dir.join("registry.redb");
 
     if local_path.exists() {
         return Ok(());
@@ -98,6 +101,9 @@ fn migrate_if_needed(data_dir: &Path) -> Result<()> {
         }
         if has_peers {
             copy_peers(&db, &peers_path)?;
+        }
+        if registry_path.exists() {
+            copy_ring_peers(&db, &registry_path)?;
         }
         // `db` is dropped here — file lock released before the rename below.
     }
@@ -160,6 +166,50 @@ fn copy_peers(dst: &Database, src_path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Backfill the PEERS table with members found in named rings in `registry.redb`.
+///
+/// Any peer that is already present in PEERS (i.e. was in `peers.redb`) is
+/// left untouched — existing nicknames are preserved. Only peers absent from
+/// PEERS are inserted, with an empty nickname.
+///
+/// The open ring (`"open"`) has no meaningful membership list and is skipped.
+fn copy_ring_peers(dst: &Database, registry_path: &Path) -> Result<()> {
+    // Mirror of iroh-rings' RINGS table: ring_name → flat 32-byte peer-id chunks.
+    const RINGS_REGISTRY: TableDefinition<'_, &str, &[u8]> = TableDefinition::new("rings");
+
+    let src = Database::open(registry_path).context("opening registry.redb")?;
+    let read = src.begin_read().context("reading registry.redb")?;
+    let Ok(rings_table) = read.open_table(RINGS_REGISTRY) else {
+        return Ok(());
+    };
+
+    let write = dst
+        .begin_write()
+        .context("writing ring peers to local.redb.tmp")?;
+    {
+        let mut peers_table = write.open_table(PEERS).context("opening peers table")?;
+        for item in rings_table.iter().context("iterating rings")? {
+            let (ring_name, members_bytes) = item.context("reading ring row")?;
+            if ring_name.value() == "open" {
+                continue;
+            }
+            for chunk in members_bytes.value().chunks_exact(32) {
+                if peers_table
+                    .get(chunk)
+                    .context("querying peer in peers table")?
+                    .is_none()
+                {
+                    peers_table
+                        .insert(chunk, "")
+                        .context("inserting ring peer")?;
+                }
+            }
+        }
+    }
+    write.commit().context("committing ring peers migration")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +234,18 @@ mod tests {
         let mut t = write.open_table(GRANTS).unwrap();
         t.insert(grant_key("blob-list", peer).as_slice(), ())
             .unwrap();
+        drop(t);
+        write.commit().unwrap();
+    }
+
+    fn write_old_registry_with_ring(dir: &Path, ring: &str, members: &[&[u8; 32]]) {
+        const RINGS_REGISTRY: TableDefinition<'_, &str, &[u8]> = TableDefinition::new("rings");
+        let db = Database::create(dir.join("registry.redb")).unwrap();
+        let write = db.begin_write().unwrap();
+        let mut t = write.open_table(RINGS_REGISTRY).unwrap();
+        t.insert("open", &[][..]).unwrap();
+        let flat: Vec<u8> = members.iter().flat_map(|p| p.iter().copied()).collect();
+        t.insert(ring, flat.as_slice()).unwrap();
         drop(t);
         write.commit().unwrap();
     }
@@ -274,6 +336,47 @@ mod tests {
             .unwrap()
             .is_some());
         assert_eq!(pt.get(peer.as_slice()).unwrap().unwrap().value(), "bob");
+    }
+
+    #[test]
+    fn migrates_ring_peers_not_in_peer_store() {
+        let dir = TempDir::new().unwrap();
+        let grant_peer = peer_bytes();
+        let ring_peer = peer_bytes();
+        // Need at least one old file to trigger the migration.
+        write_old_grants(dir.path(), &grant_peer);
+        write_old_registry_with_ring(dir.path(), "friends", &[&ring_peer]);
+
+        migrate_if_needed(dir.path()).unwrap();
+
+        let db = Database::open(dir.path().join("local.redb")).unwrap();
+        let read = db.begin_read().unwrap();
+        let t = read.open_table(PEERS).unwrap();
+        assert_eq!(
+            t.get(ring_peer.as_slice()).unwrap().unwrap().value(),
+            "",
+            "ring peer must be backfilled with no nickname"
+        );
+    }
+
+    #[test]
+    fn migrates_ring_peers_preserves_existing_nickname() {
+        let dir = TempDir::new().unwrap();
+        let peer = peer_bytes();
+        // peer is in peers.redb with a nickname AND in a ring.
+        write_old_peers(dir.path(), &peer, "alice");
+        write_old_registry_with_ring(dir.path(), "friends", &[&peer]);
+
+        migrate_if_needed(dir.path()).unwrap();
+
+        let db = Database::open(dir.path().join("local.redb")).unwrap();
+        let read = db.begin_read().unwrap();
+        let t = read.open_table(PEERS).unwrap();
+        assert_eq!(
+            t.get(peer.as_slice()).unwrap().unwrap().value(),
+            "alice",
+            "nickname from peers.redb must not be overwritten by ring backfill"
+        );
     }
 
     #[test]

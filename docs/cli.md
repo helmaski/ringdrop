@@ -8,7 +8,7 @@ Full reference for the `rdrop` command-line interface.
 
 ## `rdrop id`
 
-Print this node's peer-id (its public key in base32). Share it with others so they can add you to their rings.
+Print this node's peer-id (its public key in base32). Share it with others so they can add you to their peer address book and to their rings.
 
 ```sh
 rdrop id
@@ -18,21 +18,13 @@ rdrop id
 
 ## `rdrop daemon`
 
-`rdrop` serves blobs through a background daemon. Start it once; it keeps running until you stop it.
+`rdrop` serves blob transfer through a background daemon and listen for CLI commands. Start it once; it keeps running until you stop it.
 
 | Command | Description |
 |---|---|
 | `rdrop daemon start` | Start the daemon in the background |
 | `rdrop daemon stop` | Stop a running daemon |
 | `rdrop daemon status` | Show daemon status and node ID |
-
-```sh
-rdrop daemon start
-rdrop daemon status
-rdrop daemon stop
-```
-
-The daemon serves every blob that has been associated with a ring — there is no per-file serving step.
 
 ### Logging
 
@@ -59,6 +51,8 @@ Manage rings. A ring is a named group of peers; blobs tagged with a ring are dow
 | `rdrop ring remove <ring> <peer-id>` | Remove a peer from a ring |
 | `rdrop ring members <ring>` | List members of a ring |
 
+Examples:
+
 ```sh
 rdrop ring new friends
 rdrop ring list
@@ -68,14 +62,14 @@ rdrop ring members friends
 ```
 
 **Notes:**
-- `ring add` auto-registers the peer in the local address book if not already present. Use `rdrop peer add <peer-id> --nickname <name>` afterward to assign a nickname.
-- The built-in `open` ring has no membership list — any peer can access blobs tagged with it.
+- `ring add` auto-registers the peer in the local peer address book if not already present. You can use `rdrop peer add <peer-id> --nickname <name>` afterward to assign a nickname.
+- The built-in `open` ring has no membership list — any peer can access blobs associated with this special ring.
 
 ---
 
 ## `rdrop peer`
 
-Manage the local peer address book. Peers registered here can be given human-readable nicknames that appear in `ring members` and other output.
+Manage the local peer address book. Peers registered here can be given human-readable nicknames that appear consistently throughout the other command output.
 
 | Command | Description |
 |---|---|
@@ -83,6 +77,8 @@ Manage the local peer address book. Peers registered here can be given human-rea
 | `rdrop peer add <peer-id> --nickname <name>` | Register or rename a peer |
 | `rdrop peer list` | List all known peers |
 | `rdrop peer remove <peer-id>` | Remove peer from address book, all rings, and all grants |
+
+Examples:
 
 ```sh
 rdrop peer add <peer-id>
@@ -93,7 +89,7 @@ rdrop peer remove <peer-id>
 ```
 
 **Notes:**
-- `peer add` is idempotent: re-running with the same peer and nickname is a no-op.
+- `peer add` is idempotent: re-running with the same peer and nickname results in no operation.
 - `peer add --nickname <name>` updates any existing nickname.
 - `peer remove` also removes the peer from every ring and revokes all their catalog grants.
 - `peer remove` errors if the peer is not in the address book (consistent with `ring remove` and `grant remove`).
@@ -104,26 +100,30 @@ rdrop peer remove <peer-id>
 
 Shortcut for `rdrop blob import`. Import a file or directory into the local blob store and print a downloadable ticket.
 
+Examples:
+
 ```sh
-rdrop import <file>                        # untagged — warns until tagged
-rdrop import <file> --open                 # publicly accessible (anyone with the ticket)
-rdrop import <file> --ring friends         # restrict to the "friends" ring
-rdrop import <file> --ring friends --ring work  # multiple rings
+rdrop import file.txt                       # untagged — warns until tagged
+rdrop import file.txt --open                 # publicly accessible (anyone with the ticket)
+rdrop import file.txt --ring friends         # restrict to the "friends" ring
+rdrop import file.txt --ring friends --ring work  # multiple rings
 ```
 
-If no `--ring` or `--open` is given the blob is stored but cannot be downloaded until tagged. If the file was already imported, the existing ring associations are summarised instead.
+If no `--ring` or `--open` is given, the blob is stored but cannot be downloaded yet (it needstobe associated with a ring orthe `"open"` one). If the file was already imported, the existing ring associations are summarised instead.
 
 ---
 
 ## `rdrop blob`
 
-Full blob lifecycle management.
+Offer blob lifecycle management.
 
 | Command | Description |
 |---|---|
-| `rdrop blob import <file>` | Import and tag a file or directory |
+| `rdrop blob import <filename>` | Import and tag a file or directory |
 | `rdrop blob list` | List all local blobs with ring tags and tickets |
-| `rdrop blob remove <file\|hash>` | Remove a blob and all its ring associations |
+| `rdrop blob remove <filename\|hash>` | Remove a blob and all its ring associations |
+
+Examples:
 
 ```sh
 rdrop blob import file.txt --ring friends
@@ -131,7 +131,6 @@ rdrop blob list
 rdrop blob list --ring friends             # filter by ring
 rdrop blob list --peer <peer-id>           # filter by peer access
 rdrop blob remove file.txt
-rdrop blob remove <blake3-hex-hash>
 ```
 
 ---
@@ -140,11 +139,11 @@ rdrop blob remove <blake3-hex-hash>
 
 Associate an already-imported blob with a ring (or mark it open). Use this to change access after import.
 
+Examples:
+
 ```sh
-rdrop tag <file>  --ring friends
-rdrop tag <file>  --open
-rdrop tag <hash>  --ring friends
-rdrop tag <hash>  --open
+rdrop tag file.txt  --ring friends
+rdrop tag file.txt  --open
 ```
 
 ---
@@ -161,16 +160,18 @@ Remove ring associations from an already-imported blob, revoking access for the 
 
 Exactly one of `--ring`, `--open`, or `--all` must be given; they are mutually exclusive.
 
+Examples:
+
 ```sh
-rdrop untag <file>  --ring friends          # revoke friends-ring access
-rdrop untag <file>  --ring friends --ring work  # remove two rings at once
-rdrop untag <file>  --open                  # make no longer publicly accessible
-rdrop untag <hash>  --all                   # revoke all access
+rdrop untag <file|hash>  --ring friends          # revoke friends-ring access
+rdrop untag <file|hash>  --ring friends --ring work  # remove two rings at once
+rdrop untag <file|hash>  --open                  # make no longer publicly accessible
+rdrop untag <hash|hash>  --all                   # revoke all access
 ```
 
 **Notes:**
 - Untagging with `--ring` or `--open` preserves all other ring associations.
-- If the blob is not currently tagged with the specified ring, the command errors.
+- If the blob is not currently tagged with the specified ring, the command exits on error.
 - `--all` always succeeds, even if the blob has no ring associations.
 
 ---
@@ -178,6 +179,8 @@ rdrop untag <hash>  --all                   # revoke all access
 ## `rdrop receive`
 
 Download a blob from an `rdrop://` ticket. Automatically resumes if interrupted — no verified data is re-transferred.
+
+Examples:
 
 ```sh
 rdrop receive rdrop://ABCDEF...
@@ -203,6 +206,8 @@ Grant specific rights to remote peers on your local node.
 
 The only currently defined privilege is `blob-list`. A peer with this privilege can list the blobs they have access to on your node (they only see what their ring membership already allows them to download).
 
+Examples:
+
 ```sh
 rdrop grant add <peer-id> blob-list
 rdrop grant remove <peer-id> blob-list
@@ -222,6 +227,8 @@ Perform a command in a remote node.
 | `rdrop remote blob-list <peer-id>` | List blobs accessible to you on a remote node |
 
 The remote must have granted you the `blob-list` privilege (see `rdrop grant add`).
+
+Example:
 
 ```sh
 rdrop remote blob-list <peer-id>

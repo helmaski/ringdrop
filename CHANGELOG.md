@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.1] - 2026-05-29
+
+### Documentation
+
+- Fix cargo binstall target (repo name vs binary name)
+
 ## [0.11.0] - 2026-05-29
 
 ### Documentation

@@ -18,7 +18,12 @@ use std::{
 
 use anyhow::{Context, Result};
 use futures_lite::StreamExt;
-use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointAddr};
+use iroh::{
+    address_lookup::{DnsAddressLookup, PkarrPublisher},
+    endpoint::presets,
+    protocol::Router,
+    Endpoint, EndpointAddr, RelayMode,
+};
 use iroh_blobs::{
     api::blobs::{AddPathOptions, BlobStatus, ImportMode},
     format::collection::Collection,
@@ -102,13 +107,32 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the QUIC endpoint cannot bind, or if the blob store
-    /// cannot be opened or created.
+    /// Returns an error if the QUIC endpoint cannot bind, if the blob store
+    /// cannot be opened or created, or if a custom `relay_url` is configured
+    /// but the relay is unreachable at startup.
     pub async fn start(data_dir: impl AsRef<Path>, cfg: Config, registry: R) -> Result<Self> {
         let data_dir = data_dir.as_ref().to_path_buf();
         tokio::fs::create_dir_all(&data_dir).await?;
 
-        let endpoint = Endpoint::builder(presets::N0)
+        let relay_mode = match &cfg.relay_url {
+            None => RelayMode::Default,
+            Some(url) => {
+                // Probe the relay before binding so a misconfigured URL fails fast
+                // with a clear error rather than silently falling back.
+                // RELAY_PROBE_PATH in iroh-relay is "/ping".
+                reqwest::get(format!("{}ping", url))
+                    .await
+                    .with_context(|| {
+                        format!("relay probe failed for {url} — check relay_url in config.json")
+                    })?;
+                RelayMode::Custom(url.clone().into())
+            }
+        };
+
+        let endpoint = Endpoint::builder(presets::Minimal)
+            .address_lookup(PkarrPublisher::n0_dns())
+            .address_lookup(DnsAddressLookup::n0_dns())
+            .relay_mode(relay_mode)
             .secret_key(cfg.secret_key)
             .bind()
             .await

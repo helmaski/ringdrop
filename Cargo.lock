@@ -2006,9 +2006,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-rings"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc45629b96a97c31654ffc92c54d2172d367bd2d3b7648e7ba299446fc197ec8"
+checksum = "69422137eead60d913a72634d447e371d23f5c0abeaeb2287c5dae0b287ca83e"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -3128,7 +3128,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

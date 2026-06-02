@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-06-02
+
+### Documentation
+
+- Document custom relay configuration in README
+- Use third-person singular in all doc comment summary sentences
+
+### Features
+
+- (**config**) Add relay_url field for custom relay configuration
+- (**node**) Wire custom relay into endpoint builder
+- (**daemon**) Report relay in daemon start and status output
+- (**ipc**) Add a parsable structured Record on the Daemon wire protocol
+
 ## [0.11.1] - 2026-05-29
 
 ### Documentation

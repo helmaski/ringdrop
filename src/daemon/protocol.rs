@@ -663,4 +663,25 @@ mod tests {
             serde_json::from_str(&serde_json::to_string(&original).unwrap()).unwrap();
         assert_eq!(parsed, original);
     }
+
+    #[test]
+    fn event_blank_produces_empty_text() {
+        let id = Uuid::new_v4();
+        let event = Event::blank(id);
+        assert_eq!(
+            event.kind,
+            EventKind::Line {
+                text: String::new()
+            }
+        );
+    }
+
+    #[test]
+    fn event_record_round_trips_with_non_object_json_value() {
+        let id = Uuid::new_v4();
+        let original = Event::record(id, serde_json::json!([1, 2, 3]));
+        let parsed: Event =
+            serde_json::from_str(&serde_json::to_string(&original).unwrap()).unwrap();
+        assert_eq!(parsed, original);
+    }
 }

@@ -205,4 +205,92 @@ mod tests {
         let lines = ring_members_lines(&registry, &peers, "friends").unwrap();
         assert!(lines.iter().any(|l| l.contains(&peer_id.to_string())));
     }
+
+    #[test]
+    fn ring_new_creates_ring_and_returns_confirmation() {
+        let dir = TempDir::new().unwrap();
+        let (registry, _, _) = setup(&dir);
+
+        let lines = ring_new_lines(&registry, "alpha").unwrap();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("Ring created: alpha"));
+    }
+
+    #[test]
+    fn ring_list_shows_open_ring_with_public_description() {
+        let dir = TempDir::new().unwrap();
+        let (registry, _, _) = setup(&dir);
+
+        let lines = ring_list_lines(&registry).unwrap();
+        assert!(lines
+            .iter()
+            .any(|l| l.contains(OPEN_RING_NAME) && l.contains("publicly accessible")));
+    }
+
+    #[test]
+    fn ring_list_shows_named_ring_with_member_count() {
+        let dir = TempDir::new().unwrap();
+        let (registry, peers, public_id) = setup(&dir);
+        registry.create_ring("work").unwrap();
+        let (_, peer_str) = new_peer();
+        ring_add_lines(&registry, &peers, public_id, "work", &peer_str).unwrap();
+
+        let lines = ring_list_lines(&registry).unwrap();
+        assert!(lines
+            .iter()
+            .any(|l| l.contains("work") && l.contains("1 members")));
+    }
+
+    #[test]
+    fn ring_remove_removes_peer_from_ring() {
+        let dir = TempDir::new().unwrap();
+        let (registry, peers, public_id) = setup(&dir);
+        registry.create_ring("friends").unwrap();
+        let (_, peer_str) = new_peer();
+        ring_add_lines(&registry, &peers, public_id, "friends", &peer_str).unwrap();
+
+        let lines = ring_remove_lines(&registry, "friends", &peer_str).unwrap();
+        assert!(lines.iter().any(|l| l.contains("Removed")));
+        assert_eq!(registry.list_ring_peers("friends").unwrap().len(), 0);
+    }
+
+    #[test]
+    fn ring_remove_from_open_ring_returns_no_op_message() {
+        let dir = TempDir::new().unwrap();
+        let (registry, _, _) = setup(&dir);
+        let (_, peer_str) = new_peer();
+
+        let lines = ring_remove_lines(&registry, OPEN_RING_NAME, &peer_str).unwrap();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("no membership list"));
+    }
+
+    #[test]
+    fn ring_remove_with_invalid_peer_string_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let (registry, _, _) = setup(&dir);
+
+        let err = ring_remove_lines(&registry, "friends", "not-a-peer-id").unwrap_err();
+        assert!(err.to_string().contains("invalid peer id"));
+    }
+
+    #[test]
+    fn ring_members_on_empty_ring_returns_no_members_message() {
+        let dir = TempDir::new().unwrap();
+        let (registry, peers, _) = setup(&dir);
+        registry.create_ring("empty-ring").unwrap();
+
+        let lines = ring_members_lines(&registry, &peers, "empty-ring").unwrap();
+        assert!(lines.iter().any(|l| l.contains("no members")));
+    }
+
+    #[test]
+    fn ring_members_on_open_ring_returns_public_description() {
+        let dir = TempDir::new().unwrap();
+        let (registry, peers, _) = setup(&dir);
+
+        let lines = ring_members_lines(&registry, &peers, OPEN_RING_NAME).unwrap();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("public"));
+    }
 }

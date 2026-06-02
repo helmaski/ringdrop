@@ -145,4 +145,23 @@ mod tests {
             "https://relay.example.com/"
         );
     }
+
+    #[test]
+    fn public_id_matches_secret_key() {
+        let dir = tmpdir();
+        let cfg = Config::load_or_create(dir.path()).unwrap();
+        assert_eq!(cfg.public_id(), cfg.secret_key.public());
+    }
+
+    #[test]
+    fn config_with_unknown_fields_is_accepted() {
+        let dir = tmpdir();
+        let key = iroh::SecretKey::generate();
+        let json = serde_json::json!({
+            "secret_key": key,
+            "unknown_future_field": "some_value",
+        });
+        std::fs::write(dir.path().join("config.json"), json.to_string()).unwrap();
+        assert!(Config::load_or_create(dir.path()).is_ok());
+    }
 }

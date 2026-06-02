@@ -113,4 +113,30 @@ mod tests {
         let result = relay_only_addr(addr);
         assert_eq!(result.id, id);
     }
+
+    #[test]
+    fn relay_only_addr_preserves_relay_url() {
+        use iroh::RelayUrl;
+        let id = SecretKey::generate().public();
+        let url: RelayUrl = "https://relay.example.com".parse().unwrap();
+        let addr = EndpointAddr::new(id).with_relay_url(url.clone());
+        let result = relay_only_addr(addr);
+        assert_eq!(result.id, id);
+        assert!(result.relay_urls().any(|u| u == &url));
+    }
+
+    #[test]
+    fn format_peer_entry_without_nickname_returns_raw_id() {
+        let id = SecretKey::generate().public();
+        let result = format_peer_entry(&id, None);
+        assert_eq!(result, id.to_string());
+    }
+
+    #[test]
+    fn format_peer_entry_with_nickname_includes_nickname_in_parens() {
+        let id = SecretKey::generate().public();
+        let result = format_peer_entry(&id, Some("alice"));
+        assert!(result.contains(&id.to_string()));
+        assert!(result.contains("(alice)"));
+    }
 }

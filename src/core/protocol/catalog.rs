@@ -56,7 +56,7 @@ pub(crate) const DENIED: u8 = 0x00;
 /// command-specific response payload.
 pub(crate) const ALLOWED: u8 = 0x01;
 
-/// A single entry returned by a [`BLOB_LIST`] command.
+/// A single entry returned by a `BLOB_LIST` command.
 #[derive(Debug, Clone)]
 pub struct CatalogEntry {
     /// BLAKE3 root hash of the blob or collection.

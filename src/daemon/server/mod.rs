@@ -54,7 +54,7 @@ impl<R: Registry + Clone + Send + Sync + 'static> DaemonServer<R> {
         let listener = TcpListener::bind(("127.0.0.1", port))
             .await
             .map_err(|e| anyhow::anyhow!("cannot bind to port {port}: {e}"))?;
-        info!(port, "Rdrop daemon listening");
+        info!(port, "ringdrop daemon listening");
         Ok(Self {
             node: Arc::new(node),
             listener,

@@ -59,8 +59,13 @@ pub(crate) async fn run_start(data_dir: &Path) -> Result<()> {
             let node_id = query_node_info(&client)
                 .await
                 .unwrap_or_else(|_| "?".into());
+            let port = daemon_port(data_dir);
             let relay_label = relay_label(data_dir);
-            println!("Rdrop daemon started. Node ID: {node_id}");
+            println!(
+                "ringdrop v{} started on port {port}",
+                env!("CARGO_PKG_VERSION")
+            );
+            println!("Node ID: {node_id}");
             println!("Relay: {relay_label}");
             return Ok(());
         }
@@ -98,10 +103,15 @@ pub(crate) async fn run_status(data_dir: &Path) -> Result<()> {
         return Ok(());
     }
 
+    let port = daemon_port(data_dir);
     let relay_label = relay_label(data_dir);
     match query_node_info(&client).await {
         Ok(id) => {
-            println!("Rdrop daemon running. Node ID: {id}");
+            println!(
+                "ringdrop v{} running on port {port}",
+                env!("CARGO_PKG_VERSION")
+            );
+            println!("Node ID: {id}");
             println!("Relay: {relay_label}");
         }
         Err(e) => println!("Rdrop daemon running but failed to get node info: {e}"),
@@ -110,8 +120,13 @@ pub(crate) async fn run_status(data_dir: &Path) -> Result<()> {
 }
 
 pub(crate) async fn run_serve(data_dir: &Path) -> Result<()> {
+    crate::util::print_banner();
     let cfg = Config::load_or_create(data_dir).context("loading config")?;
     let port = cfg.daemon_port;
+    tracing::info!(
+        "ringdrop v{} starting on port {port}",
+        env!("CARGO_PKG_VERSION")
+    );
     let registry =
         RedbRegistry::open(data_dir.join("registry.redb")).context("opening registry")?;
     let node = Node::start(data_dir, cfg, registry).await?;
@@ -131,6 +146,14 @@ fn relay_label(data_dir: &Path) -> String {
         },
         Err(_) => "default (n0)".to_owned(),
     }
+}
+
+/// Returns the configured daemon port, falling back to the default if the config
+/// cannot be loaded.
+fn daemon_port(data_dir: &Path) -> u16 {
+    Config::load_or_create(data_dir)
+        .map(|cfg| cfg.daemon_port)
+        .unwrap_or_default()
 }
 
 async fn query_node_info(client: &DaemonClient) -> Result<String> {

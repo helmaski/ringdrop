@@ -61,6 +61,125 @@ pub(crate) fn display_peer(peer: &EndpointId, store: &PeerStore) -> String {
     format_peer_entry(peer, nick.as_deref())
 }
 
+/// Prints the ringdrop startup banner with version to stdout.
+///
+/// The giraffe mascot is rendered in yellow on the left; the "ringdrop" text
+/// in a rainbow gradient starts alongside the giraffe body. Color output
+/// requires a TTY on stdout, `NO_COLOR` unset, and `TERM` not `dumb`.
+pub fn print_banner() {
+    use std::io::IsTerminal as _;
+
+    const GIRAFFE: &str = concat!(
+        "     .          .l'.        .     .     \n",
+        "      .   . .  ..lO'..                 .\n",
+        "               .,lod..   ....           \n",
+        "      .        ..ooO:.....Oood...  .    \n",
+        ". .          ....,0xoodxlllk...      .. \n",
+        "  .     ....cdlollllllooo0.....  .    ..\n",
+        "       ..,dlll . oK . oKKK:..           \n",
+        "     ..clolll__l,NX__lloll0..      . .  \n",
+        "  ...0olollooloooxKKKKooxlO..          .\n",
+        " .ooloooKKKKXlooooXKxllKKKx..      .    \n",
+        "..llxllollkKkOloKKKKKolXKKl..           \n",
+        "..xddXkkkkO0olloKXXdlllloK:.. .  .   .  \n",
+        "..olkkkNKoKKKlx'....ddKK0l:.       ..   \n",
+        " .cxdoll0:.......  .lllodoc.      ... . \n",
+        "  ......... .    . .cK0oKKl..    .....  \n",
+        "         .         .,KKkKKc..   ......  \n",
+        "                 . .:loxolc........... .\n",
+        "      .        .   ..odKKl:..  .......  \n",
+        "        .     ..   ..KXlKKO..  .......  \n",
+        "                  ..'KKdlXo..  ....... .\n",
+    );
+
+    const RINGDROP: &str = concat!(
+        "      _                 _                 \n",
+        "     (_)               | |                \n",
+        " _ __ _ _ __   __ _  __| |_ __ ___  _ __  \n",
+        "| '__| | '_ \\ / _` |/ _` | '__/ _ \\| '_ \\ \n",
+        "| |  | | | | | (_| | (_| | | | (_) | |_) |\n",
+        "|_|  |_|_| |_|\\__, |\\__,_|_|  \\___/| .__/ \n",
+        "               __/ |               | |    \n",
+        "              |___/                |_|    ",
+    );
+
+    // The ringdrop text starts at this giraffe line (0-indexed), placing it
+    // alongside the body rather than the neck.
+    const TEXT_START: usize = 6;
+    // Giraffe is capped at 38 columns so that gap=0 + ringdrop(42) = 80.
+    const GIRAFFE_COLS: usize = 38;
+    const GAP: &str = "";
+    const YELLOW: &str = "\x1b[93m";
+    const RESET: &str = "\x1b[0m";
+
+    let version = env!("CARGO_PKG_VERSION");
+    let colored = std::io::stdout().is_terminal()
+        && std::env::var_os("NO_COLOR").is_none()
+        && std::env::var("TERM").as_deref() != Ok("dumb");
+
+    let giraffe_lines: Vec<&str> = GIRAFFE.lines().collect();
+    let ringdrop_lines: Vec<&str> = RINGDROP.lines().collect();
+
+    for (i, giraffe_line) in giraffe_lines.iter().enumerate() {
+        let giraffe_col = giraffe_line.len().min(GIRAFFE_COLS);
+        let giraffe_display = &giraffe_line[..giraffe_col];
+        let text = i
+            .checked_sub(TEXT_START)
+            .and_then(|j| ringdrop_lines.get(j));
+        if colored {
+            let padded = format!("{:<GIRAFFE_COLS$}", giraffe_display.trim_end());
+            match text {
+                Some(t) => println!("{YELLOW}{padded}{RESET}{GAP}{}", rainbow_line(t)),
+                None => println!("{YELLOW}{giraffe_display}{RESET}"),
+            }
+        } else {
+            match text {
+                Some(t) => println!("{:<GIRAFFE_COLS$}{GAP}{t}", giraffe_display.trim_end()),
+                None => println!("{giraffe_display}"),
+            }
+        }
+    }
+
+    if colored {
+        println!("\n  {YELLOW}v{version}{RESET}\n");
+    } else {
+        println!("\n  v{version}\n");
+    }
+}
+
+/// Applies a horizontal rainbow gradient to a single line using 256-color ANSI codes.
+///
+/// Each column maps to a color cycling red → orange → yellow → green → cyan →
+/// blue → magenta. Spaces are left uncolored so the background shows through.
+fn rainbow_line(line: &str) -> String {
+    const PALETTE: &[u8] = &[
+        196, 202, 208, 214, 220, 226, 190, 154, 118, 82, 46, 48, 50, 51, 45, 39, 33, 27, 21, 57,
+        93, 129, 165, 201,
+    ];
+
+    let mut out = String::new();
+    let mut active_color: Option<u8> = None;
+
+    for (col, ch) in line.chars().enumerate() {
+        if ch == ' ' {
+            out.push(' ');
+        } else {
+            let color = PALETTE[col % PALETTE.len()];
+            if active_color != Some(color) {
+                out.push_str(&format!("\x1b[38;5;{color}m"));
+                active_color = Some(color);
+            }
+            out.push(ch);
+        }
+    }
+
+    if active_color.is_some() {
+        out.push_str("\x1b[0m");
+    }
+
+    out
+}
+
 /// Parses a BLAKE3 [`Hash`] from its hex string representation.
 ///
 /// # Errors

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-06-05
+
+### Features
+
+- (**CLI**) Add info command to extract ticket details
+- Add ascii art on ringdrop text
+- Add ringdrop mascot PNG
+
+### Miscellaneous Tasks
+
+- Notify ringdrop-packaging on release publish
+
 ## [0.12.0] - 2026-06-02
 
 ### Documentation

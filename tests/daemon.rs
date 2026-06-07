@@ -108,11 +108,11 @@ async fn blob_list_for_ring(daemon: &common::TestDaemon, ring: &str) -> Vec<Stri
 }
 
 #[tokio::test]
-async fn tag_with_no_rings_and_no_open_returns_error() {
+async fn attach_with_no_rings_and_no_open_returns_error() {
     let daemon = common::TestDaemon::start().await;
     let err = daemon
         .client
-        .run(Op::Tag {
+        .run(Op::BlobAttach {
             target: "deadbeef".into(),
             rings: vec![],
             open: false,
@@ -120,14 +120,14 @@ async fn tag_with_no_rings_and_no_open_returns_error() {
         .await
         .unwrap_err();
     assert!(
-        err.to_string().contains("nothing to tag"),
-        "expected 'nothing to tag' in error; got: {err}"
+        err.to_string().contains("nothing to attach"),
+        "expected 'nothing to attach' in error; got: {err}"
     );
     daemon.shutdown().await;
 }
 
 #[tokio::test]
-async fn untag_all_removes_every_ring_association() {
+async fn detach_all_removes_every_ring_association() {
     let daemon = common::TestDaemon::start().await;
     let src = TempDir::new().unwrap();
     let file = common::write_file(src.path(), "data.txt", b"content").await;
@@ -138,7 +138,7 @@ async fn untag_all_removes_every_ring_association() {
     daemon
         .client
         .send(
-            Op::Untag {
+            Op::BlobDetach {
                 target: file.to_string_lossy().into_owned(),
                 rings: vec![],
                 open: false,
@@ -161,14 +161,14 @@ async fn untag_all_removes_every_ring_association() {
     assert_eq!(
         ring_lines,
         vec!["No blobs in local store."],
-        "blob should no longer appear under 'friends' after untag --all"
+        "blob should no longer appear under 'friends' after detach --all"
     );
 
     daemon.shutdown().await;
 }
 
 #[tokio::test]
-async fn untag_ring_removes_only_that_ring() {
+async fn detach_ring_removes_only_that_ring() {
     let daemon = common::TestDaemon::start().await;
     let src = TempDir::new().unwrap();
     let file = common::write_file(src.path(), "data.txt", b"content").await;
@@ -177,7 +177,7 @@ async fn untag_ring_removes_only_that_ring() {
 
     daemon
         .client
-        .run(Op::Untag {
+        .run(Op::BlobDetach {
             target: file.to_string_lossy().into_owned(),
             rings: vec!["friends".into()],
             open: false,
@@ -203,7 +203,7 @@ async fn untag_ring_removes_only_that_ring() {
 }
 
 #[tokio::test]
-async fn untag_open_revokes_public_access_keeping_named_rings() {
+async fn detach_open_revokes_public_access_keeping_named_rings() {
     let daemon = common::TestDaemon::start().await;
     let src = TempDir::new().unwrap();
     let file = common::write_file(src.path(), "data.txt", b"content").await;
@@ -211,7 +211,7 @@ async fn untag_open_revokes_public_access_keeping_named_rings() {
     import_with_rings(&daemon, &file, &["friends"]).await;
     daemon
         .client
-        .run(Op::Tag {
+        .run(Op::BlobAttach {
             target: file.to_string_lossy().into_owned(),
             rings: vec![],
             open: true,
@@ -221,7 +221,7 @@ async fn untag_open_revokes_public_access_keeping_named_rings() {
 
     daemon
         .client
-        .run(Op::Untag {
+        .run(Op::BlobDetach {
             target: file.to_string_lossy().into_owned(),
             rings: vec![],
             open: true,
@@ -247,7 +247,7 @@ async fn untag_open_revokes_public_access_keeping_named_rings() {
 }
 
 #[tokio::test]
-async fn untag_ring_when_not_associated_returns_error() {
+async fn detach_ring_when_not_associated_returns_error() {
     let daemon = common::TestDaemon::start().await;
     let src = TempDir::new().unwrap();
     let file = common::write_file(src.path(), "data.txt", b"content").await;
@@ -263,7 +263,7 @@ async fn untag_ring_when_not_associated_returns_error() {
 
     let err = daemon
         .client
-        .run(Op::Untag {
+        .run(Op::BlobDetach {
             target: file.to_string_lossy().into_owned(),
             rings: vec!["work".into()],
             open: false,
@@ -272,8 +272,8 @@ async fn untag_ring_when_not_associated_returns_error() {
         .await
         .unwrap_err();
     assert!(
-        err.to_string().contains("not tagged with"),
-        "expected 'not tagged with' in error; got: {err}"
+        err.to_string().contains("not attached to"),
+        "expected 'not attached to' in error; got: {err}"
     );
 
     daemon.shutdown().await;

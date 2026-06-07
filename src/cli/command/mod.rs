@@ -20,7 +20,6 @@ pub(super) mod peer;
 pub(super) mod receive;
 pub(super) mod remote;
 pub(super) mod ring;
-pub(super) mod tag;
 
 #[derive(Subcommand)]
 pub(super) enum Cmd {
@@ -66,40 +65,6 @@ pub(super) enum Cmd {
         /// Overwrite an existing destination without warning
         #[arg(long)]
         force_overwrite: bool,
-    },
-
-    /// Grant access to a blob by tagging it with a ring
-    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open"])))]
-    Tag {
-        /// Path (file or directory) or BLAKE3 hash (hex)
-        target: String,
-
-        /// Tag with a named ring (repeat for multiple)
-        #[arg(long = "ring", conflicts_with = "open")]
-        rings: Vec<String>,
-
-        /// Tag as publicly accessible (anyone can download)
-        #[arg(long, conflicts_with = "rings")]
-        open: bool,
-    },
-
-    /// Remove ring associations from a blob (revoke access)
-    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open", "all"])))]
-    Untag {
-        /// Path (file or directory) or BLAKE3 hash (hex)
-        target: String,
-
-        /// Remove a named ring association (repeat for multiple)
-        #[arg(long = "ring", conflicts_with_all = ["open", "all"])]
-        rings: Vec<String>,
-
-        /// Remove the open-ring association (revoke public access)
-        #[arg(long, conflicts_with_all = ["rings", "all"])]
-        open: bool,
-
-        /// Remove all ring associations (blob becomes inaccessible)
-        #[arg(long, conflicts_with_all = ["rings", "open"])]
-        all: bool,
     },
 
     /// Manage catalog access grants (control who can query your blob list)
@@ -150,13 +115,47 @@ pub(super) enum BlobCmd {
         open: bool,
     },
 
-    /// Remove a blob from the local store and all its ring tags
+    /// Remove a blob from the local store and all its ring associations
     Remove {
         /// File path or BLAKE3 hash (hex)
         target: String,
     },
 
-    /// List all local blobs with their ring tags and share ticket
+    /// Attach a blob to one or more rings (grants access to ring members)
+    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open"])))]
+    Attach {
+        /// Path (file or directory) or BLAKE3 hash (hex)
+        target: String,
+
+        /// Ring name(s) to attach to (repeat for multiple)
+        #[arg(value_name = "RING")]
+        rings: Vec<String>,
+
+        /// Attach as publicly accessible (anyone can download)
+        #[arg(long, conflicts_with = "rings")]
+        open: bool,
+    },
+
+    /// Detach a blob from one or more rings (revokes access)
+    #[command(group(ArgGroup::new("access").required(true).args(["rings", "open", "all"])))]
+    Detach {
+        /// Path (file or directory) or BLAKE3 hash (hex)
+        target: String,
+
+        /// Ring name(s) to detach from (repeat for multiple)
+        #[arg(value_name = "RING")]
+        rings: Vec<String>,
+
+        /// Remove the open-ring association (revoke public access)
+        #[arg(long, conflicts_with_all = ["rings", "all"])]
+        open: bool,
+
+        /// Remove all ring associations (blob becomes inaccessible)
+        #[arg(long, conflicts_with_all = ["rings", "open"])]
+        all: bool,
+    },
+
+    /// List all local blobs with their ring associations and share ticket
     List {
         /// Only show blobs accessible by this peer (base32 node ID)
         #[arg(long)]

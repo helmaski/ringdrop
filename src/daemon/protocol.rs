@@ -54,20 +54,20 @@ pub enum Op {
         /// File path or BLAKE3 hex hash identifying the blob to remove.
         target: String,
     },
-    /// Tags a blob with the given rings (or the open ring). `target` is a filename or hex hash.
-    Tag {
-        /// File path or BLAKE3 hex hash identifying the blob to tag.
+    /// Attaches a blob to the given rings (or the open ring). `target` is a filename or hex hash.
+    BlobAttach {
+        /// File path or BLAKE3 hex hash identifying the blob to attach.
         target: String,
         /// Ring names to apply (ignored when `open` is `true`).
         rings: Vec<String>,
-        /// Tag the blob as publicly accessible, overriding `rings`.
+        /// Attach the blob as publicly accessible, overriding `rings`.
         open: bool,
     },
     /// Removes ring associations from a blob. `target` is a filename or hex hash.
     ///
     /// Exactly one of `rings` (non-empty), `open`, or `all` must be set.
-    Untag {
-        /// File path or BLAKE3 hex hash identifying the blob to untag.
+    BlobDetach {
+        /// File path or BLAKE3 hex hash identifying the blob to detach.
         target: String,
         /// Ring names to remove (used when `open` and `all` are both `false`).
         rings: Vec<String>,
@@ -551,8 +551,8 @@ mod tests {
     }
 
     #[test]
-    fn op_untag_with_all_serializes_correctly() {
-        let json = serde_json::to_string(&Op::Untag {
+    fn op_detach_with_all_serializes_correctly() {
+        let json = serde_json::to_string(&Op::BlobDetach {
             target: "abc.txt".into(),
             rings: vec![],
             open: false,
@@ -561,13 +561,13 @@ mod tests {
         .unwrap();
         assert_eq!(
             json,
-            r#"{"op":"untag","target":"abc.txt","rings":[],"open":false,"all":true}"#
+            r#"{"op":"blob_detach","target":"abc.txt","rings":[],"open":false,"all":true}"#
         );
     }
 
     #[test]
-    fn op_untag_round_trips_through_json() {
-        let original = Op::Untag {
+    fn op_detach_round_trips_through_json() {
+        let original = Op::BlobDetach {
             target: "abc.txt".into(),
             rings: vec!["friends".into()],
             open: false,

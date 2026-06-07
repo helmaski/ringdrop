@@ -4,7 +4,6 @@ pub(super) mod peer;
 pub(super) mod receive;
 pub(super) mod remote;
 pub(super) mod ring;
-pub(super) mod tag;
 
 use std::path::PathBuf;
 

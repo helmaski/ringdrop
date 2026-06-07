@@ -35,12 +35,12 @@
 //! rdrop blob remove file.txt
 //! rdrop blob remove <hash>
 //!
-//! # Re-tag or untag a blob at any time
-//! rdrop tag file.txt --ring friends    # associate with a ring
-//! rdrop tag <hash> --open              # associate wth the public ring
-//! rdrop untag file.txt --ring friends  # remove one ring association
-//! rdrop untag <hash> --open            # revoke public ring association
-//! rdrop untag <hash> --all             # revoke all ring associations
+//! # Attach or detach a blob from rings at any time
+//! rdrop blob attach file.txt friends     # associate with a ring
+//! rdrop blob attach <hash> --open        # associate with the public ring
+//! rdrop blob detach file.txt friends     # remove one ring association
+//! rdrop blob detach <hash> --open        # revoke public ring association
+//! rdrop blob detach <hash> --all         # revoke all ring associations
 //!
 //! # Receive — resumes automatically if interrupted
 //! rdrop receive rdrop://ABCDEF... [--dest ./downloads]
@@ -139,21 +139,6 @@ pub async fn run() -> Result<()> {
             force_overwrite,
         } => {
             command::receive::run(&ticket, dest, force_overwrite, &data_dir).await?;
-        }
-        Cmd::Tag {
-            target,
-            rings,
-            open,
-        } => {
-            command::tag::run_tag(target, rings, open, &data_dir).await?;
-        }
-        Cmd::Untag {
-            target,
-            rings,
-            open,
-            all,
-        } => {
-            command::tag::run_untag(target, rings, open, all, &data_dir).await?;
         }
         Cmd::Grant(cmd) => command::grant::run(cmd, &data_dir).await?,
         Cmd::Remote(cmd) => command::remote::run(cmd, &data_dir).await?,

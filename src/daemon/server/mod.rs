@@ -240,20 +240,20 @@ async fn handle_op<R: Registry + Clone + Send + Sync + 'static>(
         Op::BlobRemove { target } => {
             handlers::blob::handle_blob_remove(req_id, node, tx, target).await?;
         }
-        Op::Tag {
+        Op::BlobAttach {
             target,
             rings,
             open,
         } => {
-            handlers::tag::handle_tag(req_id, node, tx, target, rings, open).await?;
+            handlers::blob::handle_attach(req_id, node, tx, target, rings, open).await?;
         }
-        Op::Untag {
+        Op::BlobDetach {
             target,
             rings,
             open,
             all,
         } => {
-            handlers::tag::handle_untag(req_id, node, tx, target, rings, open, all).await?;
+            handlers::blob::handle_detach(req_id, node, tx, target, rings, open, all).await?;
         }
         Op::RingNew { name } => {
             let lines = handlers::ring::ring_new_lines(&node.registry, &name)?;

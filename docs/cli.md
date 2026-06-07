@@ -41,7 +41,7 @@ This applies to every command, not just the daemon.
 
 ## `rdrop ring`
 
-Manage rings. A ring is a named group of peers; blobs tagged with a ring are downloadable by its members.
+Manage rings. A ring is a named group of peers; blobs attached to a ring are downloadable by its members.
 
 | Command | Description |
 |---|---|
@@ -103,13 +103,13 @@ Shortcut for `rdrop blob import`. Import a file or directory into the local blob
 Examples:
 
 ```sh
-rdrop import file.txt                       # untagged — warns until tagged
-rdrop import file.txt --open                 # publicly accessible (anyone with the ticket)
-rdrop import file.txt --ring friends         # restrict to the "friends" ring
-rdrop import file.txt --ring friends --ring work  # multiple rings
+rdrop import file.txt                            # not attached to any ring — warns until attached
+rdrop import file.txt --open                     # publicly accessible (anyone with the ticket)
+rdrop import file.txt --ring friends             # restrict to the "friends" ring
+rdrop import file.txt --ring friends --ring work # multiple rings
 ```
 
-If no `--ring` or `--open` is given, the blob is stored but cannot be downloaded yet (it needstobe associated with a ring orthe `"open"` one). If the file was already imported, the existing ring associations are summarised instead.
+If no `--ring` or `--open` is given, the blob is stored but cannot be downloaded yet (it needs to be attached to a ring or the `"open"` one). If the file was already imported, the existing ring associations are summarised instead.
 
 ---
 
@@ -119,9 +119,11 @@ Offer blob lifecycle management.
 
 | Command | Description |
 |---|---|
-| `rdrop blob import <filename>` | Import and tag a file or directory |
-| `rdrop blob list` | List all local blobs with ring tags and tickets |
+| `rdrop blob import <filename>` | Import a file or directory |
+| `rdrop blob list` | List all local blobs with ring associations and tickets |
 | `rdrop blob remove <filename\|hash>` | Remove a blob and all its ring associations |
+| `rdrop blob attach <filename\|hash> <ring>...` | Attach a blob to one or more rings |
+| `rdrop blob detach <filename\|hash> <ring>...` | Detach a blob from one or more rings |
 
 Examples:
 
@@ -131,48 +133,9 @@ rdrop blob list
 rdrop blob list --ring friends             # filter by ring
 rdrop blob list --peer <peer-id>           # filter by peer access
 rdrop blob remove file.txt
+rdrop blob attach file.txt friends
+rdrop blob detach file.txt friends
 ```
-
----
-
-## `rdrop tag`
-
-Associate an already-imported blob with a ring (or mark it open). Use this to change access after import.
-
-Examples:
-
-```sh
-rdrop tag file.txt  --ring friends
-rdrop tag file.txt  --open
-```
-
----
-
-## `rdrop untag`
-
-Remove ring associations from an already-imported blob, revoking access for the affected rings.
-
-| Flag | Description |
-|---|---|
-| `--ring <name>` | Remove a specific ring (repeatable) |
-| `--open` | Revoke public access (removes the open-ring association) |
-| `--all` | Remove every ring association; blob becomes inaccessible to all peers |
-
-Exactly one of `--ring`, `--open`, or `--all` must be given; they are mutually exclusive.
-
-Examples:
-
-```sh
-rdrop untag <file|hash>  --ring friends          # revoke friends-ring access
-rdrop untag <file|hash>  --ring friends --ring work  # remove two rings at once
-rdrop untag <file|hash>  --open                  # make no longer publicly accessible
-rdrop untag <hash|hash>  --all                   # revoke all access
-```
-
-**Notes:**
-- Untagging with `--ring` or `--open` preserves all other ring associations.
-- If the blob is not currently tagged with the specified ring, the command exits on error.
-- `--all` always succeeds, even if the blob has no ring associations.
 
 ---
 

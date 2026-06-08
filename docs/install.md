@@ -114,3 +114,13 @@ scoop update rdrop        # upgrade
 ```sh
 rdrop --version
 ```
+
+---
+
+## Desktop GUI (optional)
+
+[ringdrop-gui](https://github.com/rikettsie/ringdrop-gui) is a Tauri v2 desktop app available for Linux, macOS, and Windows. It connects to the local ringdrop daemon over IPC and exposes the full `rdrop` feature set as a native UI.
+
+Pre-built installers (`.AppImage`, `.deb`, `.rpm`, `.dmg`, `.msi`) are available on the [releases page](https://github.com/rikettsie/ringdrop-gui/releases/latest).
+
+**Prerequisite:** the ringdrop daemon must be installed and running (`rdrop daemon start`) before launching the GUI.

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2026-06-14
+
+### Documentation
+
+- Add section on ringdrop-gui installers
+- Add cross-link to ringdrop-gui in README
+
+### Features
+
+- (**blobs**) Add rich blob info and per-file progress
+
 ## [0.14.1] - 2026-06-08
 
 ### Documentation

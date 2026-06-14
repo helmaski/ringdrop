@@ -174,7 +174,10 @@ impl RingReceiver {
             .context("reading bao size header")?;
         let content_size = u64::from_le_bytes(size_buf);
         if let Some(ref p) = on_progress {
-            p(ProgressEvent::Bytes { done: 0, total: content_size });
+            p(ProgressEvent::Bytes {
+                done: 0,
+                total: content_size,
+            });
         }
 
         if let Some(size) = NonZeroU64::new(content_size) {

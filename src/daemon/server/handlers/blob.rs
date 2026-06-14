@@ -168,21 +168,21 @@ pub(crate) async fn handle_blob_list<R: Registry + Clone + Send + Sync + 'static
                 )
                 .await;
             } else {
-                let names: Vec<_> =
-                    blob_rings.iter().map(|(r, _)| r.as_str().to_owned()).collect();
+                let names: Vec<_> = blob_rings
+                    .iter()
+                    .map(|(r, _)| r.as_str().to_owned())
+                    .collect();
                 send(
                     tx,
                     Event::line(req_id, format!("    rings:  {}", names.join(", "))),
                 )
                 .await;
             }
-            send(
-                tx,
-                Event::line(req_id, format!("    ticket: {ticket_str}")),
-            )
-            .await;
-            let ring_names: Vec<_> =
-                blob_rings.iter().map(|(r, _)| r.as_str().to_owned()).collect();
+            send(tx, Event::line(req_id, format!("    ticket: {ticket_str}"))).await;
+            let ring_names: Vec<_> = blob_rings
+                .iter()
+                .map(|(r, _)| r.as_str().to_owned())
+                .collect();
             send(
                 tx,
                 Event::record(

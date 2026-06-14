@@ -68,8 +68,7 @@ pub(crate) async fn handle_receive<R: Registry + Clone + Send + Sync + 'static>(
     // Progress events are emitted by a separate task so they don't block the
     // download future — `on_progress` is `Fn` (not async), so it can't await
     // the channel send directly.
-    let (progress_tx, mut progress_rx) =
-        tokio::sync::mpsc::unbounded_channel::<ProgressEvent>();
+    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<ProgressEvent>();
     let on_progress = move |ev: ProgressEvent| {
         let _ = progress_tx.send(ev);
     };

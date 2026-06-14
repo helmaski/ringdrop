@@ -368,31 +368,35 @@ impl<R: Registry + Clone + Send + Sync + 'static> Node<R> {
                     };
                     (None, size)
                 }
-                BlobFormat::HashSeq => {
-                    match Collection::load(hash, &*self.store).await {
-                        Ok(collection) => {
-                            let file_count = collection.iter().count();
-                            let mut size_sum: u64 = 0;
-                            let mut all_complete = true;
-                            for (_, fhash) in collection.iter() {
-                                match self.store.blobs().status(*fhash).await {
-                                    Ok(BlobStatus::Complete { size }) => size_sum += size,
-                                    _ => {
-                                        all_complete = false;
-                                        break;
-                                    }
+                BlobFormat::HashSeq => match Collection::load(hash, &*self.store).await {
+                    Ok(collection) => {
+                        let file_count = collection.iter().count();
+                        let mut size_sum: u64 = 0;
+                        let mut all_complete = true;
+                        for (_, fhash) in collection.iter() {
+                            match self.store.blobs().status(*fhash).await {
+                                Ok(BlobStatus::Complete { size }) => size_sum += size,
+                                _ => {
+                                    all_complete = false;
+                                    break;
                                 }
                             }
-                            (
-                                Some(file_count),
-                                if all_complete { Some(size_sum) } else { None },
-                            )
                         }
-                        Err(_) => (None, None),
+                        (
+                            Some(file_count),
+                            if all_complete { Some(size_sum) } else { None },
+                        )
                     }
-                }
+                    Err(_) => (None, None),
+                },
             };
-            blobs.push(BlobListEntry { hash, format, name, file_count, total_size });
+            blobs.push(BlobListEntry {
+                hash,
+                format,
+                name,
+                file_count,
+                total_size,
+            });
         }
 
         Ok(blobs)

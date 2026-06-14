@@ -96,8 +96,7 @@ async fn directory_transfer_emits_file_start_events_per_member() {
     let ticket = sender.node.make_ticket(hash, format, Some("photos".into()));
     let dest = TempDir::new().unwrap();
 
-    let file_starts: Arc<Mutex<Vec<(usize, usize, String)>>> =
-        Arc::new(Mutex::new(Vec::new()));
+    let file_starts: Arc<Mutex<Vec<(usize, usize, String)>>> = Arc::new(Mutex::new(Vec::new()));
     let file_starts_clone = Arc::clone(&file_starts);
 
     receiver

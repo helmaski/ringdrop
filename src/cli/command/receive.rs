@@ -54,6 +54,9 @@ pub(crate) async fn run(
     );
 
     let mut error_msg: Option<String> = None;
+    // (file_index, file_total, file_name) of the file currently downloading.
+    let mut current_file: Option<(usize, usize, String)> = None;
+
     client
         .send(
             Op::Receive {
@@ -76,14 +79,29 @@ pub(crate) async fn run(
                     done,
                     total,
                 } => {
-                    pb.set_message(format!(" [{file_index}/{file_total}] {file_name}"));
+                    let is_new_file = current_file
+                        .as_ref()
+                        .map_or(true, |(fi, _, _)| *fi != file_index);
+                    if is_new_file {
+                        // Print a static completion line for the file that just finished.
+                        if let Some((pfi, pft, pfname)) = current_file.take() {
+                            pb.println(format!("  \u{2713} [{pfi}/{pft}] {pfname}"));
+                        }
+                        current_file = Some((file_index, file_total, file_name.clone()));
+                        pb.set_message(format!(" [{file_index}/{file_total}] {file_name}"));
+                    }
                     pb.set_length(total);
                     pb.set_position(done);
                 }
                 EventKind::Done => {
+                    // Print completion line for the last file of a directory transfer.
+                    if let Some((fi, ft, fname)) = current_file.take() {
+                        pb.println(format!("  \u{2713} [{fi}/{ft}] {fname}"));
+                    }
                     pb.finish_and_clear();
                 }
                 EventKind::Error { message } => {
+                    current_file = None;
                     pb.finish_and_clear();
                     error_msg = Some(message);
                 }

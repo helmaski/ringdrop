@@ -109,12 +109,14 @@ async fn directory_transfer_emits_file_start_events_per_member() {
         .await
         .unwrap();
 
-    let starts = file_starts.lock().unwrap();
-    assert_eq!(starts.len(), 2, "expected one FileStart per member file");
-    assert!(starts.iter().all(|(_, t, _)| *t == 2));
-    let names: Vec<&str> = starts.iter().map(|(_, _, n)| n.as_str()).collect();
-    assert!(names.contains(&"a.jpg"));
-    assert!(names.contains(&"b.jpg"));
+    {
+        let starts = file_starts.lock().unwrap();
+        assert_eq!(starts.len(), 2, "expected one FileStart per member file");
+        assert!(starts.iter().all(|(_, t, _)| *t == 2));
+        let names: Vec<&str> = starts.iter().map(|(_, _, n)| n.as_str()).collect();
+        assert!(names.contains(&"a.jpg"));
+        assert!(names.contains(&"b.jpg"));
+    }
 
     sender.shutdown().await;
     receiver.shutdown().await;

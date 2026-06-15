@@ -2,11 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2026-06-15
+
+### Refactoring
+
+- (**deps**) Bump iroh 1.0.0 and related crates
+
 ## [0.16.0] - 2026-06-15
 
 ### Features
 
-- (**Catalog**) Support blob rich info in remote peer browsing
+- (**catalog**) Support blob rich info in protocol
 
 ## [0.15.0] - 2026-06-14
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0] - 2026-06-15
+
+### Features
+
+- (**Catalog**) Support blob rich info in remote peer browsing
+
 ## [0.15.0] - 2026-06-14
 
 ### Documentation
